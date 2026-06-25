@@ -96,8 +96,8 @@ Official Apify actor. 16k+ users, 99.4% success rate. Most reliable long-term.
 **Input per competitor:**
 ```json
 {
-  "startUrls": [{"url": "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&is_targeted_country=false&media_type=all&search_type=page&sort_data[direction]=desc&sort_data[mode]=total_impressions&view_all_page_id={PAGE_ID}"}],
-  "resultsLimit": 100
+  "startUrls": [{"url": "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&is_targeted_country=false&media_type=video&search_type=page&sort_data[direction]=desc&sort_data[mode]=total_impressions&view_all_page_id={PAGE_ID}"}],
+  "resultsLimit": 50
 }
 ```
 
@@ -105,6 +105,7 @@ Key URL parameters:
 - `active_status=all` -- pulls active AND historical/inactive ads
 - `sort_data[mode]=total_impressions` -- highest impression ads first
 - `country=ALL` -- all countries (change to `GB`, `US`, etc. to filter)
+- `media_type=video` -- requests video-only results, but Meta's Ad Library still returns DCO/DPA ads that include video variants. The post-scrape filter in Step 3 discards these.
 
 Use the Apify MCP `call-actor` tool. Set `async: false` so it waits for results.
 
@@ -114,10 +115,10 @@ Use if the primary actor is unavailable or returns errors.
 
 ```json
 {
-  "urls": [{"url": "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&media_type=all&search_type=page&view_all_page_id={PAGE_ID}"}],
+  "urls": [{"url": "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&media_type=video&search_type=page&view_all_page_id={PAGE_ID}"}],
   "scrapePageAds.activeStatus": "all",
   "scrapePageAds.sortBy": "impressions_desc",
-  "count": 100
+  "count": 50
 }
 ```
 
@@ -130,8 +131,10 @@ Simplest input -- takes Page ID directly.
   "pageId": "{PAGE_ID}",
   "activeStatus": "all",
   "country": "ALL",
+  "mediaType": "video",
   "sortMode": "total_impressions",
-  "sortDirection": "desc"
+  "sortDirection": "desc",
+  "maxItems": 50
 }
 ```
 
@@ -144,7 +147,19 @@ Simplest input -- takes Page ID directly.
 
 ---
 
-## Step 3: Dedup Against Existing Records
+## Step 3: Filter and Dedup
+
+**Filter before dedup — discard immediately:**
+
+```python
+ALLOWED_FORMATS = {"VIDEO"}
+
+filtered = [ad for ad in scraped_ads if ad["snapshot"]["displayFormat"] in ALLOWED_FORMATS]
+discarded = len(scraped_ads) - len(filtered)
+# Log: f"[{competitor}] Discarded {discarded} non-video ads (DCO/DPA/IMAGE/CAROUSEL)"
+```
+
+Only `displayFormat = "VIDEO"` ads proceed. DCO, DPA, IMAGE, and CAROUSEL are silently dropped — they either have no real video or use dynamic template copy (`{{product.name}}`). Log the discard count per competitor.
 
 Before inserting, fetch existing Ad Archive IDs from the Swipe File:
 
@@ -199,14 +214,26 @@ For each new ad, transform the Apify response into an Airtable record.
 | Scrape Batch ID | Apify dataset ID | From the `call-actor` response |
 | Is Analyzed | false | |
 
-**DCO ads:** When `displayFormat` = `DCO`, the body text is often `{{product.brand}}` and title is `{{product.name}}`. These are Meta's dynamic templates. The REAL copy is in `snapshot.cards[].body` and `snapshot.extraTexts[].text`. Extract copy from cards first, then extraTexts as fallback.
+**DCO/DPA ads are discarded in Step 3** and never reach this step. No DCO record is inserted into Airtable.
 
 **Carousel ads:** Creative data is in `snapshot.cards[]` array. Each card has its own `body`, `title`, `ctaType`, `originalImageUrl`, `videoSdUrl`.
 
+**CRITICAL: How to fetch Video URL from Apify datasets**
+
+When calling `get-dataset-items`, do NOT use the `fields` projection parameter if you need Video URL. Apify's field projection does not correctly return nested array fields like `snapshot.videos[0].videoHdUrl` — the field will silently come back empty.
+
+Instead, always fetch items **without** the `fields` parameter (or with `clean: true` only). Then extract the video URL from the full item:
+- Primary path: `item["snapshot.videos"][0]?.videoHdUrl` (when items are returned as objects)
+- Flat path (as Apify sometimes returns): `item["snapshot.videos.videoHdUrl"]` — this is an array; take `[0]`
+- SD fallback: same paths with `videoSdUrl`
+
+If the Video URL is still empty after extraction, log it and leave the Airtable field blank. Never skip inserting the record.
+
 **IMPORTANT: Output fields vary between actors.** When processing results:
-1. Log the first result to see the exact field names
-2. Try the primary field name first, then known alternatives
-3. If a field is missing, leave it blank rather than erroring
+1. Fetch full items (no `fields` restriction) to avoid losing nested array data
+2. Log the first result to see the exact field names returned
+3. Try the primary field name first, then known alternatives
+4. If a field is missing, leave it blank rather than erroring
 
 **Fallback field name mappings:**
 
@@ -292,6 +319,7 @@ Total ads found: {total}
   New ads added: {new}
   Already existed: {existing}
   Marked killed: {killed}
+  Discarded (DCO/DPA/non-video): {discarded}
 
 Longevity breakdown:
   Long-Runners (60d+): {count} -- PROVEN WINNERS
@@ -324,3 +352,4 @@ Next step: Run /ad-analyzer to transcribe and classify new ads.
 10. **Ad Active Status vs Status:** `Ad Active Status` is what Meta reports (Active/Inactive). `Status` is your swipe file classification (Active, Killed, Winner, Starred). An ad can be `Ad Active Status = Inactive` but `Status = Winner` -- that means it ran successfully and was turned off after scaling.
 11. **If the primary actor fails**, retry once. If it fails again, switch to Fallback 1. If that fails, try Fallback 2. Log which actor worked for each competitor.
 12. **Fallback if all Apify actors are down:** You can manually browse the Meta Ad Library at facebook.com/ads/library and add records to the Swipe File via Airtable directly. The rest of the pipeline (analyzer, ideator, scripter) still works.
+13. **Filter before dedup.** Only `displayFormat = VIDEO` ads are inserted. DCO, DPA, IMAGE, and CAROUSEL are discarded after scraping, before the dedup check. Log the count discarded per competitor in the Step 7 summary.

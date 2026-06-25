@@ -19,7 +19,7 @@ Airtable Base ID: YOUR_AIRTABLE_BASE_ID
 Ad Pipeline Table: YOUR_PIPELINE_TABLE_ID
 ```
 
-Also read: `reference/visual-styles.md`
+Also read: `reference/visual-styles.md`, `reference/metodologia-lpx.md`
 
 ---
 
@@ -61,7 +61,7 @@ Shot 2: BODY BEAT 1 (3-8s)
   Framing: Medium shot
   Camera: Static or slight push-in
   Action: {what the speaker does}
-  B-roll option: {alternative visual}
+  Imagem de apoio: {visual alternativo}
   Text overlay: "{key phrase}" -- center, medium
 
 Shot 3: ...
@@ -73,31 +73,38 @@ Shot 3: ...
 - **Action:** What the subject does during this shot
 - **Audio:** Voice, music, sound effects, silence
 - **Text overlay:** Exact text, position, timing
-- **B-roll alternative:** What to show if not filming a person
+- **Imagem de apoio:** O que mostrar quando não há pessoa em câmera
+
+### LPX Production Rules (from `reference/metodologia-lpx.md`)
+- **Cenário:** Brief must specify at least 2 different locations/settings. Bathroom or bedroom alone is not enough — add a second context coherent with the product (e.g. dressing table, kitchen counter, natural light near window).
+- **Cortes:** Every script beat = a cut. No shot should run longer than 5–7s without a cut or camera change. Flag this explicitly in the shot list.
+- **Câmera — face close-up at opening** to create connection; zoom to product packaging when introducing it; close-up on skin/hair application with the product.
+- **Mostrar, não narrar:** Every benefit mentioned in dialogue must have a corresponding action direction (applying, spreading, showing the result on skin). If the script says a benefit without a visual action, add one.
+- **Cupom no vídeo:** If the script includes a discount code, add a text overlay shot for it — the code must appear on screen while being spoken.
 
 ---
 
-## Step 3: B-Roll Suggestions
+## Step 3: Sugestões de Imagens de Apoio
 
-For each script section, suggest 3-5 B-roll options from the standard categories (see `reference/visual-styles.md`):
+Para cada seção do script, sugerir 3-5 opções de imagens de apoio das categorias padrão (ver `reference/visual-styles.md`):
 
 ```
-B-ROLL SUGGESTIONS
+IMAGENS DE APOIO
 
-Hook section:
-  - Phone notification close-up (results)
-  - Laptop screen showing {relevant metric}
-  - Hands typing / scrolling
+Seção do hook:
+  - Close em notificação do celular (resultados)
+  - Tela do computador mostrando {métrica relevante}
+  - Mãos digitando / rolando a tela
 
-Body section:
-  - Dashboard or analytics screenshot
-  - Calendar filling up with bookings
-  - Team working / client session in progress
+Seção do body:
+  - Print de dashboard ou analytics
+  - Agenda enchendo com reservas
+  - Equipe trabalhando / sessão com cliente em andamento
 
-CTA section:
-  - Landing page on phone screen
-  - Finger tapping "Book Now" button
-  - Happy client reaction shot
+Seção do CTA:
+  - Landing page na tela do celular
+  - Dedo tocando o botão "Comprar agora"
+  - Reação de cliente satisfeita
 ```
 
 ---
@@ -139,16 +146,20 @@ TEXT OVERLAYS
 SETUP
 
 Aspect ratio: 9:16 (vertical) -- shoot on phone or rotate camera
-Lighting: Natural window light or ring light on face
+Lighting: Natural window light preferred; ring light on face as fallback — naturalness outperforms polished production for UGC
 Audio: Built-in mic is fine for UGC feel, lapel mic for cleaner audio
 Background: {clean/minimal or relevant context}
 Wardrobe: {casual/professional depending on brand}
+Scenarios: {list at least 2 specific locations from the shot list}
 
 FILMING TIPS
 - Film the hook 3 times with different energy levels
 - Pause 2 seconds between each section (easier to edit)
 - Look at the camera lens, not the screen
 - Keep phone on Do Not Disturb
+- Entonação expressiva — not monotone or too calm; genuine enthusiasm, not performed
+- Naturalidade over perfeição — a slightly imperfect UGC read outperforms polished delivery
+- Every benefit you mention: show it simultaneously (apply on skin, spread on hair, demonstrate)
 ```
 
 ---
@@ -234,7 +245,11 @@ Next step: Film it. After filming, run /ad-launch when you have the creative ass
 
 1. **Every script beat must have a corresponding shot.** No gaps between script and shot list.
 2. **Text overlays must have exact text, position, and timing.** The editor should not have to guess.
-3. **B-roll must be practical.** Do not suggest shots that require equipment or locations the user does not have.
+3. **Imagens de apoio devem ser práticas.** Não sugerir cenas que exijam equipamentos ou locais que a influenciadora não tem acesso.
 4. **Default to 9:16 vertical** unless the user specifies otherwise.
 5. **The brief must be printable.** Someone should be able to print it and film from it without opening a computer.
 6. **Keep it simple for solo operators.** If it is one person with a phone, the brief should reflect that.
+7. **Minimum 2 scenarios.** Never brief a video shot entirely in one location — specify at least 2 distinct settings.
+8. **Cut at every beat.** No continuous shot longer than 5–7s. Every scene change must be noted in the shot list.
+9. **Show, don't narrate.** Every benefit in the script must have an action direction in the corresponding shot (application, result, demonstration). No floating claims without a visual.
+10. **Coupon on screen.** If the script has a discount code, the brief must include a text overlay shot with the code visible while spoken.

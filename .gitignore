@@ -45,3 +45,8 @@ creatives/
 
 # MCP local config (contains API keys)
 .mcp.json
+
+# Frontend (Next.js)
+frontend/.next/
+frontend/out/
+frontend/*.tsbuildinfo

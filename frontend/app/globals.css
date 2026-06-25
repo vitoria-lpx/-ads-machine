@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --lpx-pink: #EF27FF;
+  --lpx-gray-bg: #f4f4f4;
+  --lpx-gray-border: #e0e0e0;
+  --lpx-gray-text: #666666;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-montserrat);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-montserrat), sans-serif;
+}
+
+.input-lpx:focus {
+  outline: none;
+  border-color: #EF27FF;
+  box-shadow: 0 0 0 3px rgba(239, 39, 255, 0.12);
+}

@@ -15,10 +15,11 @@ You are a creative analysis system. You process unanalyzed ads from the Swipe Fi
 
 1. **Airtable MCP** connected
 2. **Unanalyzed ads** in the Swipe File (run `/ad-poller` first)
-3. **ffmpeg installed** -- for audio extraction (check: `ffmpeg -version`)
-4. **whisper.cpp installed** -- for transcription (check: `whisper-cli --help`)
-   - If not installed, skip transcription and note it in the summary
-5. **Gemini API key** in `.env` as `GEMINI_API_KEY` (optional -- for visual analysis)
+3. **Groq API key** in `.env` as `GROQ_API_KEY` -- for transcription via Whisper on Groq's infrastructure
+   - Groq accepts `.mp4` directly -- no audio extraction needed
+   - Fallback: OpenAI Whisper API (`OPENAI_API_KEY` in `.env`)
+   - If neither available, skip transcription and note it in the summary
+5. **Claude API key** in `.env` as `ANTHROPIC_API_KEY` (optional -- for visual analysis via Claude Haiku)
 
 ---
 
@@ -34,17 +35,23 @@ Ad Swipe File Table: YOUR_SWIPE_FILE_TABLE_ID
 
 ## Step 1: Fetch Unanalyzed Ads
 
+Check if the user passed a niche argument (e.g. `/ad-analyzer Moda`, `/ad-analyzer Beleza`, `/ad-analyzer Wellness`).
+
+- **With niche argument:** filter by both `Is Analyzed = FALSE` AND `Nicho = "{niche}"`.
+- **Without niche argument:** filter only by `Is Analyzed = FALSE` (process everything).
+
 ```
 Use Airtable MCP: list_records
   base_id: {from CLAUDE.md}
   table_id: {Swipe File table ID}
-  filter: {Is Analyzed} = FALSE()
-  fields: Ad Archive ID, Competitor, Display Format, Body Text, Title, Video URL, Image URL, Hook Copy
+  filter: AND(NOT({Is Analyzed}), {Nicho}="{niche}")   ← with niche arg
+  filter: NOT({Is Analyzed})                            ← without niche arg
+  fields: Ad Archive ID, Competitor, Nicho, Display Format, Body Text, Title, Video URL, Hook Copy
 ```
 
-Print count: `Found {N} unanalyzed ads to process.`
+Print count: `Found {N} unanalyzed ads to process (Nicho: {niche or "all"}).`
 
-If the user passed a count argument, limit to that many. Otherwise process all.
+If the user also passed a count argument (e.g. `/ad-analyzer Moda 10`), limit to that many.
 
 ---
 
@@ -60,53 +67,36 @@ curl -s -L -o /tmp/ads-machine/{ad_archive_id}.mp4 --max-time 60 "{video_url}"
 
 If download fails, log it and continue to the next ad.
 
-### 2b. Get Metadata
+### 2b. Transcribe with Groq Whisper
+
+**Primary: Groq API** (same Whisper model, ~18x cheaper than OpenAI, faster inference)
+
 ```bash
-ffprobe -v quiet -print_format json -show_format -show_streams /tmp/ads-machine/{ad_archive_id}.mp4
+curl -s https://api.groq.com/openai/v1/audio/transcriptions \
+  -H "Authorization: Bearer {GROQ_API_KEY}" \
+  -F model="whisper-large-v3-turbo" \
+  -F language="pt" \
+  -F file="@/tmp/ads-machine/{ad_archive_id}.mp4"
 ```
 
-Extract:
-- `duration` (seconds, rounded)
-- `width` and `height` -> calculate aspect ratio:
-```python
-ratio = width / height
-if abs(ratio - 9/16) < 0.05: aspect = "9:16"
-elif abs(ratio - 4/5) < 0.05: aspect = "4:5"
-elif abs(ratio - 1) < 0.05: aspect = "1:1"
-elif abs(ratio - 16/9) < 0.05: aspect = "16:9"
-else: aspect = "Other"
-```
-
-### 2c. Extract Audio
-```bash
-ffmpeg -i /tmp/ads-machine/{ad_archive_id}.mp4 -ar 16000 -ac 1 -f wav /tmp/ads-machine/{ad_archive_id}.wav -y 2>/dev/null
-```
-
-### 2d. Transcribe with Whisper
-```bash
-whisper-cli -m {model_path} -f /tmp/ads-machine/{ad_archive_id}.wav --no-prints
-```
-
-Use whichever whisper model is available. `tiny.en` (75MB) is fast and sufficient for ad transcription. `medium.en` (1.5GB) is more accurate.
-
-If whisper is not installed, check for OpenAI API key and use the Whisper API as fallback:
+**Fallback: OpenAI Whisper API**
 ```bash
 curl -s https://api.openai.com/v1/audio/transcriptions \
   -H "Authorization: Bearer {OPENAI_API_KEY}" \
   -F model="whisper-1" \
-  -F file="@/tmp/ads-machine/{ad_archive_id}.wav"
+  -F file="@/tmp/ads-machine/{ad_archive_id}.mp4"
 ```
 
-If neither is available, skip transcription. Log: `Whisper not available -- skipping transcription for {count} video ads.`
+If none is available, skip transcription. Log: `Whisper not available -- skipping transcription for {count} video ads.`
 
-### 2e. Extract Hook
+### 2c. Extract Hook
 Split transcript on sentence boundaries (`. ! ?`). Take the first 1-2 complete sentences.
 - If the first sentence is fewer than 8 words, include the second sentence.
 - This becomes the `Hook Video` field.
 
-### 2f. Clean Up
+### 2d. Clean Up
 ```bash
-rm /tmp/ads-machine/{ad_archive_id}.mp4 /tmp/ads-machine/{ad_archive_id}.wav
+rm /tmp/ads-machine/{ad_archive_id}.mp4
 ```
 
 ---
@@ -119,31 +109,31 @@ For every ad (video and non-video), classify based on available text content (bo
 
 | Angle | Signals in Copy/Transcript |
 |-------|---------------------------|
-| Social Proof | Testimonials, revenue numbers, "since we signed up", "my name is", case studies, client results |
-| Pain-to-Transformation | Fees, losing money, switching pain, "save you", "fight back", frustration language |
-| Tips/Education | How-to, listicles, "reason number", "watch this", educational framing, step-by-step |
-| Growth Problem | More orders, scaling, "drive sales", "increase your", growth metrics |
-| Profit Problem | Costs, margins, wasted spend, "paying too much", ROI language |
-| Authority | Platform features, "only solution", data access, expert positioning, credentials |
-| Scarcity/Urgency | Limited time, spots filling, deadline, "last chance", countdown |
-| Behind-the-Scenes | Day-in-the-life, process reveal, "how we", "let me show you" |
-| Controversy | Contrarian takes, "most people are wrong", "unpopular opinion", industry criticism |
-| Comparison | "vs", "compared to", "I tested both", head-to-head |
+| Pain-to-Solution | Problem named (pain, discomfort, frustration) + product as fix; "finally found", "fixed my", "I struggled with" |
+| Benefit/Result | Outcome-first framing: visible result, metric, or transformation promised or demonstrated |
+| Education | How-to, ingredient explanation, tips, tutorials, "did you know", science-backed claims |
+| Lifestyle/Aspiration | Identity, self-expression, aesthetic, "be the person who", fit/beauty/fashion as identity |
+| Social Proof | Reviews, testimonials, "I've been using", UGC with results, influencer endorsement, ratings |
+| Product Experience | Texture, sensation, sensory detail, unboxing, how it feels/looks/wears in use |
+| Offer/Urgency | Discount, limited time, coupon code, "only X left", bundle deal, free gift |
 
 If multiple signals match, choose the dominant one. If unclear, default to the first match.
 
 ---
 
-## Step 4: Classify Ad Format Type
+## Step 4: Classify Ad Format Type (Beauty & Skincare)
 
 | Format | Detection Rules |
 |--------|----------------|
-| UGC Testimonial | Video + first-person experience ("my name is", "our sales", "since we", customer story) |
-| UGC Talking Head | Video + presenter explaining features/benefits (second-person "you", instructional) |
-| Interview/Case Study | Video + Q&A pattern, multiple speakers, interviewer framing |
-| Motion Graphics | Video + no meaningful transcript (music only, silence, or very short text) |
-| Static Image | Image display format with real copy |
-| Screenshot/Demo | Image showing product interface, dashboard, or screen capture |
+| GRWM Tutorial | Video + "get ready with me" framing, sequential routine, talking through steps while applying makeup/skincare |
+| Product Application Close-Up | Video + close-up shot of product being applied to skin (fingers/applicator on face, hands, lips) |
+| Texture/Swatch Close-Up | Video or image + macro shot of product texture, swatch on skin, no face needed |
+| Before/After Comparison | Image or video + explicit split-screen or sequential before/after skin shots |
+| UGC Testimonial | Video + first-person experience talking to camera about results ("my skin", "I noticed") |
+| UGC Talking Head | Video + presenter explaining product benefits/ingredients, instructional, not necessarily applying it |
+| Unboxing/Haul | Video + opening packaging, multiple products shown in sequence |
+| Static Image | Image display format with real copy (product shot, flat lay, lifestyle) |
+| Influencer/Dermatologist Review | Video + third-party expert or creator reviewing/endorsing the product |
 | Slideshow | Carousel or multi-image format |
 | Other | DCO with template variables `{{product.name}}` or unclassifiable |
 
@@ -151,23 +141,62 @@ If multiple signals match, choose the dominant one. If unclear, default to the f
 
 ## Step 5: Visual Analysis with Gemini (Optional)
 
-If `GEMINI_API_KEY` is in `.env`, run visual analysis on ads with images or video thumbnails.
+If `GEMINI_API_KEY` is in `.env`, run visual analysis using **Gemini 1.5 Flash** (`gemini-2.5-flash`). Gemini processes full video files natively — no frame extraction needed.
 
-For each ad with an Image URL or video thumbnail:
+**Cost:** ~$0.075 per hour of video. A 30s ad costs ~$0.001. Processing 118 video ads costs ~$0.10 total.
 
+### For video ads (Display Format = Video)
+
+Download the video to a temp file, upload to Gemini File API, then analyze:
+
+**Step 5a — Upload video to Gemini File API:**
+```bash
+curl -s -X POST \
+  "https://generativelanguage.googleapis.com/upload/v1beta/files?key={GEMINI_API_KEY}" \
+  -H "X-Goog-Upload-Protocol: multipart" \
+  -F "metadata={mimeType:'video/mp4'};type=application/json" \
+  -F "file=@/tmp/ads-machine/{ad_archive_id}.mp4;type=video/mp4"
 ```
-Analyze this ad creative and describe:
-1. Visual format (photo, graphic, screenshot, text-heavy, minimal)
-2. Color palette (dominant colors)
-3. Text overlay presence and style (bold, subtle, none)
-4. Production quality (professional, semi-pro, casual/UGC)
-5. Human presence (face visible, hands only, no people)
-6. Key visual elements that grab attention
+
+Extract `file.uri` from the response.
+
+**Step 5b — Analyze with Gemini:**
+```json
+{
+  "model": "gemini-2.5-flash",
+  "contents": [{
+    "parts": [
+      { "fileData": { "mimeType": "video/mp4", "fileUri": "{file_uri}" } },
+      { "text": "Analyze this beauty/skincare video ad. Respond in 6 short lines:\n1. Visual format (GRWM tutorial / product application close-up / texture macro / before-after / talking head / flat lay / other)\n2. Lighting: Natural/Organic OR Studio/Ring Light OR Mixed — explain why in one sentence\n3. Skin focus: realistic texture visible OR stylized/filtered\n4. Color palette (2-3 words)\n5. Production quality: Professional studio / Semi-pro creator / Casual UGC\n6. Key attention element (what grabs the eye first)" }
+    ]
+  }]
+}
 ```
 
-Store the response in the `Visual Style` field.
+**Step 5c — Delete the file from Gemini after analysis** (files are billed by storage too):
+```bash
+curl -s -X DELETE \
+  "https://generativelanguage.googleapis.com/v1beta/{file_name}?key={GEMINI_API_KEY}"
+```
 
-If Gemini is not configured, skip this step silently. The rest of the analysis still works.
+### For image ads (Display Format = Image)
+
+Pass the image URL directly — no upload needed:
+```json
+{
+  "model": "gemini-2.5-flash",
+  "contents": [{
+    "parts": [
+      { "imageUrl": { "url": "{image_url}" } },
+      { "text": "Analyze this beauty/skincare image ad. Respond in 6 short lines:\n1. Visual format\n2. Lighting: Natural/Organic OR Studio/Ring Light OR Mixed\n3. Skin focus: realistic texture visible OR stylized/filtered\n4. Color palette (2-3 words)\n5. Production quality: Professional studio / Semi-pro creator / Casual UGC\n6. Key attention element" }
+    ]
+  }]
+}
+```
+
+Store each response in the `Visual Style` field. Lead with the lighting classification — UGC-style natural lighting tends to outperform polished studio shots in this niche.
+
+If `GEMINI_API_KEY` is not configured, skip this step silently.
 
 ---
 
@@ -268,10 +297,13 @@ Ads processed: {total}
   Skipped (no media): {skipped}
 
 By angle:
+  Pain-to-Solution: {count}
+  Benefit/Result: {count}
+  Education: {count}
+  Lifestyle/Aspiration: {count}
   Social Proof: {count}
-  Pain-to-Transformation: {count}
-  Tips/Education: {count}
-  ...
+  Product Experience: {count}
+  Offer/Urgency: {count}
 
 By format:
   UGC Talking Head: {count}
@@ -327,9 +359,12 @@ After analysis, extract hooks from Long-Runner ads (60d+) and append them to `re
 
 1. **Process ads one at a time** for video download/transcription. Clean up files after each.
 2. **Never fail the whole batch** because one ad fails. Log the error and continue.
-3. **Whisper tiny.en** is the default model. Use whatever is installed.
+3. **Groq Whisper** (`whisper-large-v3-turbo`) is the default transcription model. Send `.mp4` directly -- no audio extraction needed. Fallback: OpenAI Whisper API.
 4. **Hook extraction:** Split on sentence boundaries, not word count. Take first 1-2 complete sentences.
 5. **Airtable batch limit is 10.** Always batch updates.
 6. **DCO ads have no media.** Still classify them from body text and title.
 7. **Days Active is the grade.** No composite scoring. If an ad ran 60+ days, someone kept paying for it -- that's a proven winner regardless of how the creative looks to you.
 8. **Gemini visual analysis is optional.** The system works without it. Do not error if the key is missing.
+9. **Gemini processes full video files** via the File API. Upload → analyze → delete. Always delete after analysis to avoid storage charges.
+10. **Groq rate limit:** 7,200 audio seconds/hour on the free tier. With ~30s ads, that's ~240 videos/hour. If you hit the limit, pause and retry after 60s.
+11. **Gemini rate limit:** 1,000 requests/minute on the paid tier. No issue for this use case.
