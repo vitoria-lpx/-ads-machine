@@ -258,7 +258,7 @@ export default function Home() {
       {/* Header */}
       <header className="bg-white border-b border-[#e0e0e0] px-6 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <img src="/logor5.png" alt="LPX" className="h-[84px]" />
+          <img src="/logor5.png" alt="LPX" className="h-[168px]" />
           <span className="text-sm font-semibold px-3 py-1 rounded-full border border-[#EF27FF] text-[#EF27FF] bg-[#fdf0ff]">
             Gerador de Briefing
           </span>
