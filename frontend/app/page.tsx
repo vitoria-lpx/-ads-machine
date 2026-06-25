@@ -392,7 +392,7 @@ export default function Home() {
             )}
 
             {completion && (
-              <pre className="whitespace-pre-wrap font-mono text-sm text-[#1a1a1a] leading-relaxed flex-1">
+              <pre className="whitespace-pre-wrap font-sans text-sm text-[#1a1a1a] leading-relaxed flex-1">
                 {completion}
                 {isLoading && <span className="animate-pulse text-[#EF27FF]">▊</span>}
               </pre>
