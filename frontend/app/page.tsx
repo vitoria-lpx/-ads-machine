@@ -1,7 +1,7 @@
 'use client';
 
 import { useCompletion } from '@ai-sdk/react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const ANGULOS = [
   { value: 'Pain-to-Solution',     label: 'Dor e solução — o produto resolve um problema real do público' },
@@ -80,14 +80,36 @@ export default function Home() {
   const [notionStatus, setNotionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [notionError, setNotionError] = useState('');
 
+  type RefAd =
+    | { found: true; competitor: string; adLibraryUrl: string; daysActive: number; angleCategory: string; fallback: boolean }
+    | { found: false };
+  const [refAd, setRefAd] = useState<RefAd | null>(null);
+  const wasLoadingRef = useRef(false);
+
   const { completion, complete, isLoading } = useCompletion({
     api: '/api/generate',
     streamProtocol: 'text',
   });
 
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && completion) {
+      const anguloLabel = ANGULOS.find(a => a.value === form.angulo)?.label.split(' — ')[0] ?? form.angulo;
+      fetch('/api/reference-ad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nicho: form.nicho, angulo: anguloLabel }),
+      })
+        .then(r => r.json())
+        .then(data => setRefAd(data))
+        .catch(() => {});
+    }
+    wasLoadingRef.current = isLoading;
+  }, [isLoading]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nicho || !form.dor || !form.angulo || !form.formato || !form.publicacao) return;
+    setRefAd(null);
 
     const dorFinal = form.dor === 'outros' ? form.dorCustom : form.dor;
     const ctaDestinoTexto =
@@ -374,6 +396,26 @@ export default function Home() {
                 {completion}
                 {isLoading && <span className="animate-pulse text-[#EF27FF]">▊</span>}
               </pre>
+            )}
+
+            {refAd?.found && (
+              <div className="mt-4 border border-[#e0e0e0] rounded-lg p-4 bg-[#f4f4f4]">
+                <p className="text-xs font-semibold text-[#666666] uppercase tracking-wider mb-2">
+                  📎 Vídeo de referência{refAd.fallback ? ' (nicho similar)' : ''}
+                </p>
+                <p className="text-sm font-semibold text-[#1a1a1a]">
+                  {refAd.competitor} — Long-Runner ({refAd.daysActive} dias ativo)
+                </p>
+                <p className="text-sm text-[#666666] mb-3">Ângulo: {refAd.angleCategory}</p>
+                <a
+                  href={refAd.adLibraryUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block text-sm border border-[#EF27FF] text-[#EF27FF] rounded-lg px-4 py-2 hover:bg-[#fdf0ff] transition-colors"
+                >
+                  Ver anúncio
+                </a>
+              </div>
             )}
           </div>
 
