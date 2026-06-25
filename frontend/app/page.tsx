@@ -77,6 +77,8 @@ export default function Home() {
 
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [notionStatus, setNotionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [notionError, setNotionError] = useState('');
 
   const { completion, complete, isLoading } = useCompletion({
     api: '/api/generate',
@@ -106,6 +108,34 @@ export default function Home() {
         ctaUrgencia: form.ctaUrgencia,
       },
     });
+  };
+
+  const handleSaveNotion = async () => {
+    setNotionStatus('saving');
+    setNotionError('');
+    try {
+      const anguloLabel = ANGULOS.find(a => a.value === form.angulo)?.label.split(' — ')[0] ?? form.angulo;
+      const res = await fetch('/api/save-notion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          briefing: completion,
+          marca: form.marca,
+          produto: form.produto,
+          nicho: form.nicho,
+          angulo: anguloLabel,
+          formato: form.formato,
+          duracao: form.duracao,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao salvar');
+      setNotionStatus('saved');
+      setTimeout(() => setNotionStatus('idle'), 3000);
+    } catch (err) {
+      setNotionError(err instanceof Error ? err.message : 'Erro ao salvar');
+      setNotionStatus('error');
+    }
   };
 
   const handleCopy = () => {
@@ -347,13 +377,35 @@ export default function Home() {
           </div>
 
           {completion && !isLoading && (
-            <div className="flex justify-end">
-              <button
-                onClick={handleCopy}
-                className="text-sm border border-[#e0e0e0] rounded-lg px-4 py-2 text-[#666666] hover:text-[#1a1a1a] hover:border-[#EF27FF] transition-colors"
-              >
-                {copied ? 'Copiado!' : 'Copiar briefing'}
-              </button>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm">
+                {notionStatus === 'saved' && (
+                  <span className="text-green-600 font-medium">Salvo no Notion ✓</span>
+                )}
+                {notionStatus === 'error' && (
+                  <span className="text-red-500">{notionError}</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCopy}
+                  className="text-sm border border-[#e0e0e0] rounded-lg px-4 py-2 text-[#666666] hover:text-[#1a1a1a] hover:border-[#EF27FF] transition-colors"
+                >
+                  {copied ? 'Copiado!' : 'Copiar briefing'}
+                </button>
+                <button
+                  onClick={handleSaveNotion}
+                  disabled={notionStatus === 'saving'}
+                  className="flex items-center gap-2 text-sm bg-[#1a1a1a] text-white rounded-lg px-4 py-2 hover:bg-[#333] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {notionStatus === 'saving' ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Salvando...
+                    </>
+                  ) : 'Salvar no Notion'}
+                </button>
+              </div>
             </div>
           )}
         </main>

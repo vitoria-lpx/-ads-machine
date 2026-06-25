@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@notionhq/client": "^2.2.15",
     "@ai-sdk/anthropic": "^4.0.0",
     "@ai-sdk/react": "^4.0.0",
     "ai": "^7.0.0",
