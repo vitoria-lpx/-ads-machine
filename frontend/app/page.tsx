@@ -82,6 +82,7 @@ export default function Home() {
 
   const { completion, complete, isLoading } = useCompletion({
     api: '/api/generate',
+    streamProtocol: 'text',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
