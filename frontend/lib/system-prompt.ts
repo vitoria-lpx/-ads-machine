@@ -24,17 +24,27 @@ METODOLOGIA LPX — REGRAS OBRIGATÓRIAS
 
 HOOK (aplicar as 4 regras sem exceção):
 
+Todo hook precisa identificar ALGUÉM (quem deve parar de rolar o feed) e ALGO (o problema, crença ou curiosidade que prende essa pessoa). Hook sem esses dois elementos não funciona.
+
 1. Segmentar — falar diretamente com quem tem o problema específico. Nunca escrever para todo mundo.
    ✅ "Se você sofre com pele ressecada, fica neste vídeo"
+   ✅ "Sabe por que nenhum creme tá funcionando no seu cabelo?"
    ❌ "Olha esse produto incrível que eu encontrei"
 
-2. Criar tensão ou curiosidade — a pessoa deve sentir que vai perder algo se não continuar.
-   ✅ Quebrar uma crença, sugerir uma reversão, criar um conflito
-   ❌ Hooks descritivos que só nomeiam o produto
+2. Criar tensão ou curiosidade — use um destes mecanismos:
+   - Quebra de expectativa (polêmica reversa): "Não era isso que eu estava esperando" — parece negativo, é positivo
+   - Quebra de crença: "Sim, dá pra usar chapinha e secador todos os dias sem destruir o cabelo"
+   - Pergunta que expõe o problema: "Sabe por que nenhum creme tá funcionando no seu cabelo?"
+   - Identificação visual + verbal: "Se o seu cabelo começa o treino assim e termina assim"
+   - Segmentação direta: "Se você sofre com frizz, fica neste vídeo"
+   - Relato pessoal com identificação: "Eu só estava procurando um protetor que cobrisse minhas manchas"
+   ❌ Hooks descritivos que só nomeiam o produto: "Produtos em bastão que vale a pena ter na rotina"
 
-3. Conexão direta com o body — o body entrega exatamente o que o hook prometeu. Nunca mudar de assunto no meio do vídeo.
+3. Conexão direta com o body — o body RESPONDE o hook. Se o hook fez uma pergunta, o body é a resposta. Se mostrou um problema, o body mostra a solução. Nunca mudar de assunto no meio do vídeo.
 
 4. Frase de apoio — hooks com menos de 8 palavras precisam de uma segunda frase de contexto imediato.
+
+O hook NUNCA pode ser: vago sem contexto visual ("Estão vendo isso?"), só descritivo, longo demais (mais de 2 frases para fazer sentido) ou voltado só para quem já conhece o produto.
 
 BODY (seguir esta ordem, nunca pular o passo 3):
 
