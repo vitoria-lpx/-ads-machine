@@ -20,6 +20,34 @@ Nunca inverter essa ordem. Nunca misturar as partes. Cada parte tem uma função
 ### O que é
 O hook são os primeiros 3 a 5 segundos do vídeo. É a única coisa que decide se a pessoa continua assistindo ou não.
 
+Função central: chamar a atenção de ALGUÉM para ALGO. Todo hook precisa ter esses dois elementos — quem é a pessoa que deve parar de rolar o feed, e o que é o problema, situação ou curiosidade que a prende.
+
+### Anatomia do hook
+
+Todo hook bem construído identifica:
+- **ALGUÉM** — o público exato que deve se reconhecer (mulheres que treinam, quem tem manchas de melasma, quem usa chapinha todo dia, quem já tentou vários produtos sem resultado)
+- **ALGO** — o problema, situação, crença ou curiosidade que prende esse alguém
+
+Exemplos reais analisados:
+
+✅ "Se o seu cabelo começa o treino assim e termina assim, vem que eu tenho uma dica!"
+ALGUÉM: mulheres que treinam / ALGO: o cabelo fica ruim depois do treino. Usa recurso visual (antes/depois) e a palavra "dica" soa amigável, não vendedor.
+
+✅ "Sim, dá pra usar chapinha e secador todos os dias sem destruir o cabelo"
+ALGUÉM: quem usa esses aparelhos e se culpa por isso / ALGO: quebra a crença de que calor destrói o cabelo. Começa com "sim" como se estivesse respondendo uma dúvida já existente na cabeça da pessoa.
+
+✅ "Sabe por que nenhum creme tá funcionando no seu cabelo?"
+ALGUÉM: mulheres que já investiram em produtos sem resultado / ALGO: coloca o problema como universal ("nenhum"), cria identificação imediata com quem já viveu isso.
+
+✅ "Eu só estava procurando um protetor solar que cobrisse as minhas manchas, e a Pink Cheeks não entregou isso"
+ALGUÉM: mulheres com manchas no rosto / ALGO: quebra de expectativa — parece que vai falar mal do produto, gera polêmica e curiosidade. O "só estava procurando" soa básico e identificável.
+
+❌ "Estão vendo isso aqui né?"
+ALGUÉM: indefinido / ALGO: vago. Sem contexto, não há motivo para continuar assistindo. Hook que depende só do visual sem texto não funciona sozinho.
+
+❌ "Produtos em bastão que vale a pena ter na rotina"
+Descritivo, não cria tensão nem segmenta ninguém. Poderia ser: "esse foi o produto que eu menos esperava que fosse entrar na minha rotina".
+
 ### Regras do hook LPX
 
 **REGRA 1 — O hook deve ser segmentado**
@@ -41,16 +69,51 @@ O que o hook promete, o corpo entrega. Nunca prometer no hook e mudar de assunto
 - ✅ Hook fala de frizz → corpo inteiro resolve o frizz
 - ✅ Hook fala de melasma → corpo inteiro apresenta solução para melasma
 - ❌ Hook fala de melasma → corpo muda para falar de compatibilidade com maquiagem
+- ❌ Hook fala de frizz → corpo menciona outros benefícios sem voltar ao frizz como fio condutor
+
+O corpo deve RESPONDER o hook. Se o hook fez uma pergunta, o corpo é a resposta. Se o hook mostrou um problema, o corpo mostra a solução.
 
 **REGRA 4 — Se o hook for curto (menos de 8 palavras), ele precisa de uma segunda frase de apoio**
 Hooks muito curtos sem contexto não capturam bem a abertura real do anúncio.
 
 ### Tipos de hook que funcionam
-1. **Pergunta/Identificação de dor** — "Celulite, flacidez, bolinhas, textura. Se esse é o seu dilema..."
-2. **Afirmação que quebra crença** — "Sim, dá pra usar chapinha e secador todos os dias sem destruir o cabelo"
-3. **Surpresa reversa** — "Não era isso que eu estava esperando" (parece negativo, é positivo)
-4. **Segmentação direta** — "Se você sofre com frizz, fica neste vídeo"
-5. **Hook de autoridade/experiência** — "Eu uso isso daqui há 2 anos"
+
+**Tipo 1 — QUEBRA DE EXPECTATIVA (polêmica reversa)**
+A pessoa espera algo negativo, recebe algo positivo. Prende pela curiosidade do contraste.
+Exemplo: "Não era isso que eu estava esperando" / "A Pink Cheeks não entregou isso"
+Como usar: apresentar aparente crítica ou decepção → virar para positivo no corpo
+
+**Tipo 2 — QUEBRA DE CRENÇA ESTABELECIDA**
+Confronta uma ideia que a maioria aceita como verdade.
+Exemplo: "Sim, dá pra usar chapinha e secador todos os dias sem destruir o cabelo"
+Como usar: começa com "sim", "não", "para de" — responde uma dúvida que a pessoa nunca perguntou mas sempre teve
+
+**Tipo 3 — PERGUNTA QUE EXPÕE O PROBLEMA**
+Faz a pessoa se reconhecer no problema antes de apresentar qualquer solução.
+Exemplo: "Sabe por que nenhum creme tá funcionando no seu cabelo?"
+Como usar: específica o suficiente para quem tem o problema sentir que é sobre ela, genérica o suficiente para não excluir ninguém do público
+
+**Tipo 4 — IDENTIFICAÇÃO VISUAL + VERBAL**
+Mostra o problema e fala sobre ele ao mesmo tempo.
+Exemplo: "Se o seu cabelo começa o treino assim e termina assim" (com recurso visual)
+Como usar: o "assim" aponta para algo visível — o problema precisa aparecer em câmera junto com a fala
+
+**Tipo 5 — SEGMENTAÇÃO DIRETA**
+Fala o nome do problema diretamente para quem o tem.
+Exemplo: "Se você sofre com frizz, fica neste vídeo" / "Se você tem manchas de melasma"
+Como usar: começa com "se você" + dor específica + convite para continuar
+
+**Tipo 6 — RELATO PESSOAL COM IDENTIFICAÇÃO**
+A influenciadora conta uma experiência própria que o público reconhece como sua.
+Exemplo: "Eu só estava procurando um protetor que cobrisse minhas manchas"
+Como usar: usar "eu só queria", "eu só estava procurando" — soa básico e humano, não vendedor
+
+### O que o hook NUNCA pode ser
+
+- **Vago demais:** "Estão vendo isso aqui né?" sem contexto visual claro não funciona
+- **Só descritivo:** "Produtos em bastão que vale a pena ter na rotina" — não cria tensão nem segmenta
+- **Nichado demais para audiência fria:** hook que só funciona para quem já usa o produto perde quem não conhece a marca
+- **Longo demais:** se o hook precisa de mais de 2 frases para fazer sentido, não é um hook, é uma introdução
 
 ---
 
@@ -103,9 +166,14 @@ O CTA (Call to Action) é a última fala do vídeo. Seu único objetivo é levar
 ### Regras do CTA LPX
 
 **REGRA 1 — CTA fraco não serve**
-- ❌ "Vale muito a pena testar" — vago, não direciona para ação
+- ❌ "Vale muito a pena testar" — vago, sem direcionamento, sem urgência
 - ❌ "Conheça o Pro Stick no site" — não gera urgência
 - ❌ "Dá uma chance" — não direciona para compra
+- ❌ "Acesse lá e já garanta seu kit" — sem cupom, sem urgência real
+- ❌ "Experimente a praticidade que trata, protege e transforma" — poético mas não converte
+
+✅ Padrão que funciona: produto + onde comprar + cupom falado em voz alta + urgência
+"Corre lá no site da Sallve, usa o cupom ANGELICA10 pra ganhar 10% off. Corre que acaba rápido!"
 
 **REGRA 2 — CTA forte tem 3 elementos**
 1. **Direcionamento** — diz exatamente onde ir (site da marca, link na bio)
@@ -143,6 +211,16 @@ Se o cupom só aparece na legenda, muita gente perde. A influenciadora deve fala
 - Entonação expressiva — não pode ser monótona ou muito calma
 - Falar com entusiasmo genuíno, não forçado
 - Naturalidade é mais importante que perfeição de produção (UGC performa melhor que produção profissional)
+
+---
+
+## 5B. ERROS COMUNS DE PRODUÇÃO — baseado nas análises
+
+- **Mesmo cenário o vídeo todo** — mesmo que o cenário seja bom, variar aumenta o dinamismo e a retenção
+- **Entonação monótona** — entusiasmo genuíno performa melhor que produção impecável; UGC natural bate studio frio
+- **Mostrar o produto sem comparar** — antes/depois ou lado a lado (um lado com produto, outro sem) é o que gera confiança real
+- **Linha de produtos sem ancoragem** — se o briefing tem shampoo + condicionador + spray, cada um precisa de uma razão de existir no roteiro ligada à dor específica
+- **Ingrediente sem mecanismo** — "tem ácido tranexâmico" sem "que trata manchas escuras causadas pelo sol" não converte; o ingrediente precisa ser traduzido em resultado
 
 ---
 
