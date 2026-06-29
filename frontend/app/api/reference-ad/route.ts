@@ -7,30 +7,67 @@ const ANGLE_MAP: Record<string, string> = {
   'Oferta e urgência':        'Offer/Urgency',
 };
 
-type AirtableRecord = { fields: Record<string, string | number> };
+type NotionPage = { id: string; properties: Record<string, any> };
 
-async function queryAirtable(apiKey: string, baseId: string, formula: string): Promise<AirtableRecord[]> {
-  const params = new URLSearchParams({ filterByFormula: formula, maxRecords: '50' });
-  ['Competitor', 'Ad Library URL', 'Days Active', 'Angle Category'].forEach(f =>
-    params.append('fields[]', f),
-  );
+let cachedDbId: string | null = null;
 
-  const res = await fetch(
-    `https://api.airtable.com/v0/${baseId}/tbl4zG1dsIWSzXUoT?${params}`,
-    { headers: { Authorization: `Bearer ${apiKey}` } },
-  );
+async function getSwipeDbId(token: string): Promise<string | null> {
+  if (cachedDbId) return cachedDbId;
+  const res = await fetch('https://api.notion.com/v1/search', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Notion-Version': '2022-06-28',
+    },
+    body: JSON.stringify({ query: 'Swipe File', filter: { property: 'object', value: 'database' } }),
+  });
   const data = await res.json();
-  return data.records ?? [];
+  const db = (data.results ?? []).find(
+    (r: any) => r.object === 'database' && r.title?.[0]?.plain_text === 'Swipe File',
+  );
+  if (db) cachedDbId = db.id;
+  return cachedDbId;
 }
 
-function pick(records: AirtableRecord[], fallback: boolean) {
-  const rec = records[Math.floor(Math.random() * records.length)];
+async function queryNotion(token: string, dbId: string, filter: object): Promise<NotionPage[]> {
+  const pages: NotionPage[] = [];
+  let cursor: string | undefined;
+  do {
+    const res = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Notion-Version': '2022-06-28',
+      },
+      body: JSON.stringify({ filter, page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }),
+    });
+    const data = await res.json();
+    pages.push(...(data.results ?? []));
+    cursor = data.has_more ? data.next_cursor : undefined;
+  } while (cursor);
+  return pages;
+}
+
+function getStr(page: NotionPage, prop: string): string {
+  const p = page.properties[prop];
+  if (!p) return '';
+  if (p.type === 'url')       return p.url ?? '';
+  if (p.type === 'select')    return p.select?.name ?? '';
+  if (p.type === 'rich_text') return p.rich_text?.[0]?.plain_text ?? '';
+  if (p.type === 'number')    return String(p.number ?? 0);
+  return '';
+}
+
+function pick(pages: NotionPage[], fallback: boolean) {
+  const page = pages[Math.floor(Math.random() * pages.length)];
   return {
     found: true as const,
-    competitor:    String(rec.fields['Competitor'] ?? ''),
-    adLibraryUrl:  String(rec.fields['Ad Library URL'] ?? ''),
-    daysActive:    Number(rec.fields['Days Active'] ?? 0),
-    angleCategory: String(rec.fields['Angle Category'] ?? ''),
+    competitor:    getStr(page, 'Competitor'),
+    adLibraryUrl:  getStr(page, 'Ad Library URL'),
+    daysActive:    Number(page.properties['Days Active']?.number ?? 0),
+    angleCategory: getStr(page, 'Angle Category'),
     fallback,
   };
 }
@@ -38,27 +75,37 @@ function pick(records: AirtableRecord[], fallback: boolean) {
 export async function POST(req: Request) {
   try {
     const { nicho, angulo } = await req.json();
+    const token = process.env.NOTION_TOKEN;
+    if (!token) return Response.json({ found: false });
 
-    const apiKey = process.env.AIRTABLE_API_KEY;
-    const baseId = process.env.AIRTABLE_BASE_ID ?? 'appACpl3rkO8fB2nH';
-    if (!apiKey) return Response.json({ found: false });
+    const dbId = await getSwipeDbId(token);
+    if (!dbId) return Response.json({ found: false });
 
     const angleValue = ANGLE_MAP[angulo] ?? angulo;
-    const base = `{Longevity Tier}="Long-Runner",{Ad Active Status}="Active",NOT({Ad Library URL}="")`;
+    const base = [
+      { property: 'Longevity Tier',   select: { equals: 'Long-Runner' } },
+      { property: 'Ad Active Status', select: { equals: 'Active' } },
+      { property: 'Ad Library URL',   url:    { is_not_empty: true } },
+    ];
 
-    // Tentativa 1 — nicho + ângulo exato
-    const records1 = await queryAirtable(
-      apiKey, baseId,
-      `AND({Nicho}="${nicho}",{Angle Category}="${angleValue}",${base})`,
-    );
-    if (records1.length > 0) return Response.json(pick(records1, false));
+    // Tentativa 1 — nicho + ângulo
+    const pages1 = await queryNotion(token, dbId, {
+      and: [
+        { property: 'Nicho',          select: { equals: nicho } },
+        { property: 'Angle Category', select: { equals: angleValue } },
+        ...base,
+      ],
+    });
+    if (pages1.length > 0) return Response.json(pick(pages1, false));
 
     // Tentativa 2 — só nicho
-    const records2 = await queryAirtable(
-      apiKey, baseId,
-      `AND({Nicho}="${nicho}",${base})`,
-    );
-    if (records2.length > 0) return Response.json(pick(records2, true));
+    const pages2 = await queryNotion(token, dbId, {
+      and: [
+        { property: 'Nicho', select: { equals: nicho } },
+        ...base,
+      ],
+    });
+    if (pages2.length > 0) return Response.json(pick(pages2, true));
 
     return Response.json({ found: false });
   } catch (error) {

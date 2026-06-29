@@ -108,9 +108,9 @@ This installation is configured for **Beauty & Skincare** (Produtos de beleza â€
 |-------|-------|
 | Airtable Base ID | appACpl3rkO8fB2nH |
 | Competitors Table | tbl8qC1uJnntAO2ST |
-| Ad Swipe File Table | tbl4zG1dsIWSzXUoT |
 | Proven Hooks Table | tblFdymfaHC0uYEmZ |
 | Ad Pipeline Table | tblWMso9ejwROeyec |
+| Notion Swipe File Page ID | 38e3ef898c4e80ca82caf8c0ce5b7531 |
 
 ## Connected Tools
 | Tool | Status |

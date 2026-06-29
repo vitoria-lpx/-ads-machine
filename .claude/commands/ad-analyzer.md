@@ -13,8 +13,8 @@ You are a creative analysis system. You process unanalyzed ads from the Swipe Fi
 
 ## Prerequisites
 
-1. **Airtable MCP** connected
-2. **Unanalyzed ads** in the Swipe File (run `/ad-poller` first)
+1. **Notion MCP** connected (`NOTION_TOKEN` in `.env`)
+2. **Unanalyzed ads** in the Notion Swipe File (run `/ad-poller` first)
 3. **Groq API key** in `.env` as `GROQ_API_KEY` -- for transcription via Whisper on Groq's infrastructure
    - Groq accepts `.mp4` directly -- no audio extraction needed
    - Fallback: OpenAI Whisper API (`OPENAI_API_KEY` in `.env`)
@@ -27,9 +27,17 @@ You are a creative analysis system. You process unanalyzed ads from the Swipe Fi
 
 Read from CLAUDE.md:
 ```
-Airtable Base ID: YOUR_AIRTABLE_BASE_ID
-Ad Swipe File Table: YOUR_SWIPE_FILE_TABLE_ID
+Notion Swipe File Page ID: 38e3ef898c4e80ca82caf8c0ce5b7531
 ```
+
+Resolver o database ID:
+```
+Use Notion MCP: search
+  query: "Swipe File"
+  filter: { property: "object", value: "database" }
+```
+Encontrar o resultado com title = "Swipe File". Guardar seu ID como `swipe_db_id`.
+Se não encontrar → dizer ao usuário para rodar `/ad-poller` primeiro para criar a database.
 
 ---
 
@@ -37,17 +45,32 @@ Ad Swipe File Table: YOUR_SWIPE_FILE_TABLE_ID
 
 Check if the user passed a niche argument (e.g. `/ad-analyzer Moda`, `/ad-analyzer Beleza`, `/ad-analyzer Wellness`).
 
-- **With niche argument:** filter by both `Is Analyzed = FALSE` AND `Nicho = "{niche}"`.
-- **Without niche argument:** filter only by `Is Analyzed = FALSE` (process everything).
+- **With niche argument:** filter by `Transcript is empty` AND `Video URL is not empty` AND `Nicho = "{niche}"`.
+- **Without niche argument:** filter by `Transcript is empty` AND `Video URL is not empty`.
 
 ```
-Use Airtable MCP: list_records
-  base_id: {from CLAUDE.md}
-  table_id: {Swipe File table ID}
-  filter: AND(NOT({Is Analyzed}), {Nicho}="{niche}")   ← with niche arg
-  filter: NOT({Is Analyzed})                            ← without niche arg
-  fields: Ad Archive ID, Competitor, Nicho, Display Format, Body Text, Title, Video URL, Hook Copy
+Use Notion MCP: query_database
+  database_id: {swipe_db_id}
+  filter (com niche):
+    and:
+      - property: "Transcript"  rich_text: { is_empty: true }
+      - property: "Video URL"   url:       { is_not_empty: true }
+      - property: "Nicho"       select:    { equals: "{niche}" }
+  filter (sem niche):
+    and:
+      - property: "Transcript"  rich_text: { is_empty: true }
+      - property: "Video URL"   url:       { is_not_empty: true }
+  (paginar com next_cursor até has_more = false)
 ```
+
+De cada resultado extrair:
+- `page.id` → ID para update
+- `properties.Name.title[0].plain_text` → Ad Archive ID
+- `properties.Competitor.select.name` → Competitor
+- `properties.Nicho.select.name` → Nicho
+- `properties["Display Format"].select.name` → Display Format
+- `properties["Video URL"].url` → Video URL
+- `properties["Hook Copy"].rich_text[0].plain_text` → Hook Copy
 
 Print count: `Found {N} unanalyzed ads to process (Nicho: {niche or "all"}).`
 
@@ -230,23 +253,24 @@ Format, angle, hook, CTA type are FILTERS for browsing -- not scoring factors. A
 
 ---
 
-## Step 7: Update Airtable Records
+## Step 7: Update Notion Records
 
-Batch update all processed ads (10 per request):
+Atualizar cada page individualmente:
 
-Fields to update:
-- `Video Duration` (if video)
-- `Aspect Ratio` (if video)
-- `Transcript` (if video + whisper available)
-- `Hook Video` (if video + transcript)
-- `Word Count`
-- `Angle Category`
-- `Ad Format Type`
-- `Visual Style` (if Gemini available)
-- `Days Active`
-- `Longevity Tier`
-- `Impressions Rank` (position in scrape results, 1 = most impressions)
-- `Is Analyzed` = true
+```
+Use Notion MCP: update_page
+  page_id: {page.id do Step 1}
+  properties:
+    "Transcript":      { rich_text: [{ text: { content: transcript } }] }     ← se vídeo + whisper
+    "Hook Copy":       { rich_text: [{ text: { content: hook } }] }           ← se extraído
+    "Angle Category":  { select: { name: angle_category } }
+    "Visual Style":    { rich_text: [{ text: { content: visual_analysis } }] } ← se Gemini
+    "Days Active":     { number: days_active }
+    "Longevity Tier":  { select: { name: tier } }
+    "Pipeline Status": { select: { name: "Ready" } }
+```
+
+Atenção: rich_text tem limite de 2000 caracteres por item. Se o transcript for maior, dividir em chunks de 2000 chars (até 100 items por propriedade).
 
 ---
 
@@ -267,6 +291,8 @@ For each ad where:
 Create a record:
 ```
 Use Airtable MCP: create_record
+  base_id: {Airtable Base ID from CLAUDE.md}
+  table_id: {Proven Hooks Table from CLAUDE.md}
   fields: {
     Hook Text: {hook_video or hook_copy},
     Source Competitor: {competitor name},
@@ -279,6 +305,8 @@ Use Airtable MCP: create_record
     Date Added: {today}
   }
 ```
+
+Note: Proven Hooks table still uses Airtable. Skip this step if Airtable MCP is not connected.
 
 This runs silently. No user interaction. The Proven Hooks table grows automatically every time the analyzer processes new Long-Runners.
 
@@ -361,7 +389,7 @@ After analysis, extract hooks from Long-Runner ads (60d+) and append them to `re
 2. **Never fail the whole batch** because one ad fails. Log the error and continue.
 3. **Groq Whisper** (`whisper-large-v3-turbo`) is the default transcription model. Send `.mp4` directly -- no audio extraction needed. Fallback: OpenAI Whisper API.
 4. **Hook extraction:** Split on sentence boundaries, not word count. Take first 1-2 complete sentences.
-5. **Airtable batch limit is 10.** Always batch updates.
+5. **Notion updates são um page por vez.** Sem batch update API. Processar sequencialmente.
 6. **DCO ads have no media.** Still classify them from body text and title.
 7. **Days Active is the grade.** No composite scoring. If an ad ran 60+ days, someone kept paying for it -- that's a proven winner regardless of how the creative looks to you.
 8. **Gemini visual analysis is optional.** The system works without it. Do not error if the key is missing.

@@ -13,22 +13,62 @@ You are a competitive ad intelligence scraper. You pull every active Meta ad fro
 
 ## Prerequisites
 
-1. **Airtable MCP** connected (run `/ads-setup` if not)
-2. **Apify MCP** connected or `APIFY_TOKEN` in `.env`
-3. **Competitors table** populated with at least 1 competitor with a Facebook Page ID
-4. **CLAUDE.md** configured with Airtable base ID and table IDs
+1. **Notion MCP** connected (`NOTION_TOKEN` in `.env`)
+2. **Airtable MCP** connected — only for reading the Competitors table
+3. **Apify MCP** connected or `APIFY_TOKEN` in `.env`
+4. **Competitors table** populated with at least 1 competitor with a Facebook Page ID
+5. **CLAUDE.md** configured with Competitors table ID and Notion Swipe File Page ID
 
 ---
 
 ## Config
 
-Read these from CLAUDE.md:
+Read from CLAUDE.md:
 
 ```
-Airtable Base ID: YOUR_AIRTABLE_BASE_ID
-Competitors Table: YOUR_COMPETITORS_TABLE_ID
-Ad Swipe File Table: YOUR_SWIPE_FILE_TABLE_ID
+Competitors Table: {Airtable table ID — Competitors continua no Airtable}
+Notion Swipe File Page ID: 38e3ef898c4e80ca82caf8c0ce5b7531
 ```
+
+### Find or Create Swipe File Database
+
+Antes do Step 1, resolver o ID da database Notion:
+
+```
+Use Notion MCP: search
+  query: "Swipe File"
+  filter: { property: "object", value: "database" }
+```
+
+Se encontrar database com title = "Swipe File" → guardar seu ID como `swipe_db_id` e continuar.
+
+Se não encontrar → criar:
+
+```
+Use Notion MCP: create_database
+  parent: { type: "page_id", page_id: "38e3ef898c4e80ca82caf8c0ce5b7531" }
+  title: "Swipe File"
+  properties:
+    "Name":             { title: {} }
+    "Competitor":       { select: {} }
+    "Nicho":            { select: { options: [{name:"Beleza"},{name:"Moda"},{name:"Wellness"}] } }
+    "Page Name":        { rich_text: {} }
+    "Ad Library URL":   { url: {} }
+    "Ad Active Status": { select: { options: [{name:"Active"},{name:"Inactive"}] } }
+    "Start Date":       { date: {} }
+    "Days Active":      { number: {} }
+    "Longevity Tier":   { select: { options: [{name:"Testing"},{name:"Solid"},{name:"Performer"},{name:"Long-Runner"},{name:"Killed"}] } }
+    "Display Format":   { select: {} }
+    "Hook Copy":        { rich_text: {} }
+    "Transcript":       { rich_text: {} }
+    "Angle Category":   { select: {} }
+    "Visual Style":     { rich_text: {} }
+    "Video URL":        { url: {} }
+    "Scrape Date":      { date: {} }
+    "Pipeline Status":  { select: { options: [{name:"New"},{name:"Ready"},{name:"Done"}] } }
+```
+
+Guardar o ID retornado como `swipe_db_id`.
 
 ---
 
@@ -161,21 +201,26 @@ discarded = len(scraped_ads) - len(filtered)
 
 Only `displayFormat = "VIDEO"` ads proceed. DCO, DPA, IMAGE, and CAROUSEL are silently dropped — they either have no real video or use dynamic template copy (`{{product.name}}`). Log the discard count per competitor.
 
-Before inserting, fetch existing Ad Archive IDs from the Swipe File:
+Before inserting, fetch existing records from the Notion Swipe File:
 
 ```
-Use Airtable MCP: list_records
-  base_id: {from CLAUDE.md}
-  table_id: {Swipe File table ID}
-  fields: Ad Archive ID, Status, Start Date, Ad Active Status
+Use Notion MCP: query_database
+  database_id: {swipe_db_id}
+  page_size: 100
+  (paginar com next_cursor até has_more = false)
 ```
 
-Build a set of existing Ad Archive IDs.
+De cada resultado extrair:
+- `properties.Name.title[0].plain_text` → Archive ID
+- `page.id` → Notion page ID (necessário para updates)
+- `properties["Ad Active Status"].select.name` → status atual
+
+Montar map: `{ archiveId → { pageId, adActiveStatus } }`
 
 **Dedup logic:**
-- Ad in new scrape but NOT in Airtable = INSERT as new record
-- Ad in new scrape AND already in Airtable = update `Ad Active Status` if changed (active -> inactive or vice versa), otherwise skip
-- Ad in Airtable (Status = Active) but NOT in any new scrape AND was previously active = mark `Status` -> `Killed`, set `End Date` to today
+- Ad no scrape mas NÃO no Notion = INSERT novo page
+- Ad no scrape E já no Notion = atualizar `Ad Active Status` se mudou, senão skip
+- Ad no Notion com `Ad Active Status = Active` mas ausente do scrape = atualizar `Ad Active Status` → "Inactive"
 
 **IMPORTANT:** When scraping with `active_status=all`, the source data includes both active and inactive ads. The `Ad Active Status` field tracks the Meta status. The `Status` field tracks YOUR status (Active, Killed, Winner, Starred). These are different things:
 - `Ad Active Status` = what Meta says (Active or Inactive)
@@ -214,7 +259,7 @@ For each new ad, transform the Apify response into an Airtable record.
 | Scrape Batch ID | Apify dataset ID | From the `call-actor` response |
 | Is Analyzed | false | |
 
-**DCO/DPA ads are discarded in Step 3** and never reach this step. No DCO record is inserted into Airtable.
+**DCO/DPA ads are discarded in Step 3** and never reach this step. No DCO record is inserted into Notion.
 
 **Carousel ads:** Creative data is in `snapshot.cards[]` array. Each card has its own `body`, `title`, `ctaType`, `originalImageUrl`, `videoSdUrl`.
 
@@ -248,9 +293,29 @@ If the Video URL is still empty after extraction, log it and leave the Airtable 
 | Image URL | `snapshot.images[0].originalImageUrl` | `snapshot.images[0].original_image_url` | `imageUrl` |
 | Display format | `snapshot.displayFormat` | `snapshot.displayFormat` | `mediaType` |
 
-**Insert in batches of 10** (Airtable limit per request).
+Criar um Notion page por anúncio (Notion não tem batch create para database pages):
 
-Only send fields that have values. Do not send null or empty fields.
+```
+Use Notion MCP: create_page
+  parent: { database_id: swipe_db_id }
+  properties:
+    "Name":             { title: [{ text: { content: ad.adArchiveId } }] }
+    "Competitor":       { select: { name: competitor_name } }
+    "Nicho":            { select: { name: nicho } }
+    "Page Name":        { rich_text: [{ text: { content: ad.pageName } }] }
+    "Ad Library URL":   { url: "https://www.facebook.com/ads/library/?id={adArchiveId}" }
+    "Ad Active Status": { select: { name: ad.isActive ? "Active" : "Inactive" } }
+    "Start Date":       { date: { start: ad.startDateFormatted } }
+    "Days Active":      { number: days_active }
+    "Longevity Tier":   { select: { name: longevity_tier } }
+    "Display Format":   { select: { name: ad.snapshot.displayFormat } }
+    "Hook Copy":        { rich_text: [{ text: { content: first_line_of_body } }] }
+    "Video URL":        { url: video_url }   ← omitir se vazio
+    "Scrape Date":      { date: { start: today_iso } }
+    "Pipeline Status":  { select: { name: "New" } }
+```
+
+Omitir propriedades sem valor (não enviar null).
 
 ---
 
@@ -281,7 +346,15 @@ for ad in all_ads:
 
 **Days Active IS the grade.** No composite scoring. The market already graded every ad by how long the advertiser kept spending on it. Everything else (format, angle, hook, CTA) is a filter for browsing, not a scoring factor.
 
-Update records in batches of 10 where the tier has changed.
+Para cada anúncio onde o tier mudou, atualizar o Notion page:
+
+```
+Use Notion MCP: update_page
+  page_id: {pageId do map de dedup}
+  properties:
+    "Days Active":    { number: days }
+    "Longevity Tier": { select: { name: tier } }
+```
 
 ---
 
@@ -345,11 +418,11 @@ Next step: Run /ad-analyzer to transcribe and classify new ads.
 3. **Start dates may be ISO strings or unix timestamps** depending on the actor. Handle both: try parsing as ISO first, then as unix timestamp.
 4. **DCO ads have no media URLs.** Display format = DCO means Meta assembles the creative dynamically. Still insert the record -- the copy is useful.
 5. **Dedup on Ad Archive ID.** Same ad can appear in multiple scrapes.
-6. **Airtable batch limit is 10 records per request.** Always batch creates and updates.
+6. **Notion não tem batch create para database pages.** Criar e atualizar um page por vez.
 7. **Facebook Page ID vs Profile ID:** The Competitors table stores the Ad Library page ID, NOT the profile ID. Use `apify/facebook-page-contact-information` to resolve page URLs to Ad Library IDs (the `pageAdLibrary.id` field -- NOT `facebookId` or `pageId`).
 8. **Run competitors in sequence.** Parallel scraping hits Apify rate limits.
 9. **Never delete records.** Mark killed ads as Killed with an End Date. History matters.
 10. **Ad Active Status vs Status:** `Ad Active Status` is what Meta reports (Active/Inactive). `Status` is your swipe file classification (Active, Killed, Winner, Starred). An ad can be `Ad Active Status = Inactive` but `Status = Winner` -- that means it ran successfully and was turned off after scaling.
 11. **If the primary actor fails**, retry once. If it fails again, switch to Fallback 1. If that fails, try Fallback 2. Log which actor worked for each competitor.
-12. **Fallback if all Apify actors are down:** You can manually browse the Meta Ad Library at facebook.com/ads/library and add records to the Swipe File via Airtable directly. The rest of the pipeline (analyzer, ideator, scripter) still works.
+12. **Fallback if all Apify actors are down:** Adicionar pages manualmente na database "Swipe File" no Notion. The rest of the pipeline (analyzer, ideator, scripter) still works.
 13. **Filter before dedup.** Only `displayFormat = VIDEO` ads are inserted. DCO, DPA, IMAGE, and CAROUSEL are discarded after scraping, before the dedup check. Log the count discarded per competitor in the Step 7 summary.
