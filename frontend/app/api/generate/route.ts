@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
     let marcasContent = '';
     try {
-      marcasContent = readFileSync(join(process.cwd(), '..', 'reference', 'marcas-lpx.md'), 'utf-8');
+      marcasContent = readFileSync(join(process.cwd(), 'reference', 'marcas-lpx.md'), 'utf-8');
     } catch {
       // proceed without brand profile if file not accessible
     }
