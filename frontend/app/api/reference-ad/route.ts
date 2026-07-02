@@ -1,113 +1,74 @@
-const ANGLE_MAP: Record<string, string> = {
-  'Dor e solução':            'Pain-to-Solution',
-  'Benefício e resultado':    'Benefit/Result',
-  'Educação sobre o produto': 'Education',
-  'Estilo de vida':           'Lifestyle/Aspiration',
-  'Prova social':             'Social Proof',
-  'Oferta e urgência':        'Offer/Urgency',
-};
+import { Client } from '@notionhq/client';
 
-type NotionPage = { id: string; properties: Record<string, any> };
+const DB_ID = '3903ef89-8c4e-81d2-8d90-f9a2637204a0';
 
-let cachedDbId: string | null = null;
-
-async function getSwipeDbId(token: string): Promise<string | null> {
-  if (cachedDbId) return cachedDbId;
-  const res = await fetch('https://api.notion.com/v1/search', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Notion-Version': '2022-06-28',
-    },
-    body: JSON.stringify({ query: 'Swipe File', filter: { property: 'object', value: 'database' } }),
-  });
-  const data = await res.json();
-  const db = (data.results ?? []).find(
-    (r: any) => r.object === 'database' && r.title?.[0]?.plain_text === 'Swipe File',
-  );
-  if (db) cachedDbId = db.id;
-  return cachedDbId;
-}
-
-async function queryNotion(token: string, dbId: string, filter: object): Promise<NotionPage[]> {
-  const pages: NotionPage[] = [];
-  let cursor: string | undefined;
-  do {
-    const res = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Notion-Version': '2022-06-28',
-      },
-      body: JSON.stringify({ filter, page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }),
-    });
-    const data = await res.json();
-    pages.push(...(data.results ?? []));
-    cursor = data.has_more ? data.next_cursor : undefined;
-  } while (cursor);
-  return pages;
-}
-
-function getStr(page: NotionPage, prop: string): string {
+function getStr(page: any, prop: string): string {
   const p = page.properties[prop];
   if (!p) return '';
   if (p.type === 'url')       return p.url ?? '';
   if (p.type === 'select')    return p.select?.name ?? '';
-  if (p.type === 'rich_text') return p.rich_text?.[0]?.plain_text ?? '';
   if (p.type === 'number')    return String(p.number ?? 0);
+  if (p.type === 'rich_text') return (p.rich_text ?? []).map((r: any) => r.plain_text ?? '').join('');
   return '';
-}
-
-function pick(pages: NotionPage[], fallback: boolean) {
-  const page = pages[Math.floor(Math.random() * pages.length)];
-  return {
-    found: true as const,
-    competitor:    getStr(page, 'Competitor'),
-    adLibraryUrl:  getStr(page, 'Ad Library URL'),
-    daysActive:    Number(page.properties['Days Active']?.number ?? 0),
-    angleCategory: getStr(page, 'Angle Category'),
-    fallback,
-  };
 }
 
 export async function POST(req: Request) {
   try {
-    const { nicho, angulo } = await req.json();
+    const { nicho } = await req.json();
     const token = process.env.NOTION_TOKEN;
     if (!token) return Response.json({ found: false });
 
-    const dbId = await getSwipeDbId(token);
-    if (!dbId) return Response.json({ found: false });
+    const notion = new Client({ auth: token });
 
-    const angleValue = ANGLE_MAP[angulo] ?? angulo;
-    const base = [
-      { property: 'Longevity Tier',   select: { equals: 'Long-Runner' } },
-      { property: 'Ad Active Status', select: { equals: 'Active' } },
-      { property: 'Ad Library URL',   url:    { is_not_empty: true } },
+    const baseFilters = [
+      { property: 'Pipeline Status', select: { equals: 'Ready' } },
+      { property: 'Display Format',  select: { equals: 'VIDEO' } },
+      { property: 'Video URL',       url:    { is_not_empty: true } },
     ];
 
-    // Tentativa 1 — nicho + ângulo
-    const pages1 = await queryNotion(token, dbId, {
-      and: [
-        { property: 'Nicho',          select: { equals: nicho } },
-        { property: 'Angle Category', select: { equals: angleValue } },
-        ...base,
-      ],
+    // Attempt 1: with Nicho filter
+    const res1 = await notion.databases.query({
+      database_id: DB_ID,
+      filter: { and: [...baseFilters, { property: 'Nicho', select: { equals: nicho } }] } as any,
+      sorts: [{ property: 'Days Active', direction: 'descending' }],
+      page_size: 5,
     });
-    if (pages1.length > 0) return Response.json(pick(pages1, false));
 
-    // Tentativa 2 — só nicho
-    const pages2 = await queryNotion(token, dbId, {
-      and: [
-        { property: 'Nicho', select: { equals: nicho } },
-        ...base,
-      ],
+    let pages = res1.results;
+    let nicho_divergente = false;
+
+    if (pages.length === 0) {
+      const res2 = await notion.databases.query({
+        database_id: DB_ID,
+        filter: { and: baseFilters } as any,
+        sorts: [{ property: 'Days Active', direction: 'descending' }],
+        page_size: 5,
+      });
+      pages = res2.results;
+      nicho_divergente = true;
+    }
+
+    if (pages.length === 0) return Response.json({ found: false });
+
+    const page = pages[Math.floor(Math.random() * pages.length)] as any;
+
+    const videoUrl      = getStr(page, 'Video URL');
+    const angleCategory = getStr(page, 'Angle Category');
+    const nicho_val     = getStr(page, 'Nicho');
+
+    return Response.json({
+      found:         true,
+      competitor:    getStr(page, 'Competitor'),
+      adLibraryUrl:  getStr(page, 'Ad Library URL'),
+      daysActive:    Number(page.properties['Days Active']?.number ?? 0),
+      hookCopy:      getStr(page, 'Hook Copy'),
+      transcript:    getStr(page, 'Transcript'),
+      angleCategory,
+      visualStyle:   getStr(page, 'Visual Style'),
+      videoUrl,
+      nicho:         nicho_val,
+      nicho_divergente,
     });
-    if (pages2.length > 0) return Response.json(pick(pages2, true));
-
-    return Response.json({ found: false });
   } catch (error) {
     console.error('[reference-ad] error:', error);
     return Response.json({ found: false });

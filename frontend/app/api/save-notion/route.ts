@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       properties: {
         'Título':          { title: [{ text: { content: `${marca} — ${produto}` } }] },
         'Nicho':           { select: { name: nicho } },
-        'Ângulo':          { select: { name: angulo } },
+        ...(angulo ? { 'Ângulo': { select: { name: angulo } } } : {}),
         'Formato':         { select: { name: formato } },
         'Duração':         { select: { name: duracao } },
         'Data de geração': { date: { start: new Date().toISOString().split('T')[0] } },
