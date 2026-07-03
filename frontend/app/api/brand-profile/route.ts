@@ -1,11 +1,12 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { Client } from '@notionhq/client';
 import {
   extractMarcaSection,
   extractCacheDate,
-  readCacheFile,
+  findCachedProfile,
   buildWebSearchProfile,
-  appendToCache,
+  saveProfileToCache,
 } from '@/lib/marca-lookup';
 
 export const runtime = 'nodejs';
@@ -31,19 +32,35 @@ export async function POST(req: Request) {
       });
     }
 
-    const cacheContent = readCacheFile();
-    const perfilCache = extractMarcaSection(cacheContent, marca);
-    if (perfilCache) {
-      return Response.json({
-        perfil: perfilCache,
-        perfil_via_busca_web: true,
-        perfil_do_cache: true,
-        perfil_cache_data: extractCacheDate(perfilCache),
+    const token = process.env.NOTION_TOKEN;
+    const notion = token ? new Client({ auth: token }) : null;
+
+    if (notion) {
+      const perfilCache = await findCachedProfile(notion, marca).catch(err => {
+        console.error('[brand-profile] cache lookup failed:', err);
+        return '';
       });
+      if (perfilCache) {
+        return Response.json({
+          perfil: perfilCache,
+          perfil_via_busca_web: true,
+          perfil_do_cache: true,
+          perfil_cache_data: extractCacheDate(perfilCache),
+        });
+      }
     }
 
     const perfilBusca = await buildWebSearchProfile({ marca, produto, nicho });
-    appendToCache(perfilBusca);
+
+    // Cache write is best-effort — a Notion outage must not cost the analyst
+    // the profile that was just generated (this used to fail silently by
+    // throwing before the response was built, back when the cache lived on
+    // Vercel's read-only filesystem).
+    if (notion) {
+      await saveProfileToCache(notion, perfilBusca).catch(err => {
+        console.error('[brand-profile] failed to cache profile:', err);
+      });
+    }
 
     return Response.json({
       perfil: perfilBusca,

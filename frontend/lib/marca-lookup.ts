@@ -1,10 +1,10 @@
 import { generateText } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { readFileSync, appendFileSync, existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import type { Client } from '@notionhq/client';
 
-const CACHE_PATH = join(process.cwd(), 'reference', 'marcas-web-cache.md');
 const CACHE_DATE_RE = /_Perfil gerado via busca web em (\d{2}\/\d{2}\/\d{4})/;
+const CACHE_DB_NAME = 'Perfis de Marcas (Busca Web)';
+const CACHE_PARENT_PAGE_ID = '38a3ef898c4e80dfa9e7ce94964af165';
 
 // ─── Section extraction (shared by marcas-lpx.md and marcas-web-cache.md) ─────
 
@@ -32,12 +32,87 @@ export function extractCacheDate(section: string): string | undefined {
   return CACHE_DATE_RE.exec(section)?.[1];
 }
 
-export function readCacheFile(): string {
-  try {
-    return readFileSync(CACHE_PATH, 'utf-8');
-  } catch {
-    return '';
-  }
+// ─── Notion-backed cache (unregistered brands looked up via web search) ───────
+//
+// Vercel functions run on a read-only filesystem (except /tmp, which isn't
+// shared across invocations or persisted across deploys), so this cache
+// can't live on disk in production — it's a small Notion database instead,
+// following the same get-or-create pattern as app/api/save-notion/route.ts.
+
+async function getOrCreateCacheDb(notion: Client): Promise<string> {
+  const search = await notion.search({
+    query: CACHE_DB_NAME,
+    filter: { property: 'object', value: 'database' },
+  });
+
+  const existing = search.results.find(
+    (r: any) => r.object === 'database' && r.title?.some((t: any) => t.plain_text === CACHE_DB_NAME),
+  );
+  if (existing) return existing.id;
+
+  const db = await notion.databases.create({
+    parent: { type: 'page_id', page_id: CACHE_PARENT_PAGE_ID },
+    title: [{ type: 'text', text: { content: CACHE_DB_NAME } }],
+    properties: {
+      'Marca': { title: {} },
+    },
+  });
+  return db.id;
+}
+
+function textToBlocks(text: string) {
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length; i += 2000) chunks.push(text.slice(i, i + 2000));
+  return chunks.map(chunk => ({
+    object: 'block' as const,
+    type: 'paragraph' as const,
+    paragraph: { rich_text: [{ type: 'text' as const, text: { content: chunk } }] },
+  }));
+}
+
+async function blocksToText(notion: Client, pageId: string): Promise<string> {
+  let text = '';
+  let cursor: string | undefined;
+  do {
+    const res = await notion.blocks.children.list({ block_id: pageId, start_cursor: cursor, page_size: 100 });
+    for (const block of res.results as any[]) {
+      if (block.type === 'paragraph') {
+        text += (block.paragraph.rich_text ?? []).map((r: any) => r.plain_text ?? '').join('');
+      }
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+  return text.trim();
+}
+
+export async function findCachedProfile(notion: Client, marca: string): Promise<string> {
+  if (!marca) return '';
+  const marcaLower = marca.trim().toLowerCase();
+
+  const dbId = await getOrCreateCacheDb(notion);
+  const res = await notion.databases.query({ database_id: dbId, page_size: 100 });
+
+  const match = (res.results as any[]).find(page => {
+    const title = (page.properties?.Marca?.title ?? []).map((t: any) => t.plain_text ?? '').join('').toLowerCase();
+    if (!title) return false;
+    return title === marcaLower || marcaLower.split(' ').some(w => w.length > 3 && title.includes(w));
+  });
+  if (!match) return '';
+
+  return blocksToText(notion, match.id);
+}
+
+export async function saveProfileToCache(notion: Client, profileMarkdown: string): Promise<void> {
+  const marca = /^## (.+)$/m.exec(profileMarkdown)?.[1]?.trim() ?? 'DESCONHECIDA';
+  const dbId = await getOrCreateCacheDb(notion);
+
+  await notion.pages.create({
+    parent: { database_id: dbId },
+    properties: {
+      'Marca': { title: [{ text: { content: marca } }] },
+    },
+    children: textToBlocks(profileMarkdown),
+  });
 }
 
 // ─── Web search fallback ───────────────────────────────────────────────────────
@@ -84,20 +159,4 @@ Responda SOMENTE com o perfil da marca no formato markdown abaixo, sem nenhum te
 _Perfil gerado via busca web em ${dataGeracao} — não revisado pela equipe LPX_
 
 ${text.trim()}`;
-}
-
-export function appendToCache(profileMarkdown: string): void {
-  // Separators go BETWEEN entries only (never trailing) — extractMarcaSection
-  // returns everything to EOF for the last section in a file, so a trailing
-  // "---" would otherwise leak into the profile text handed to the model.
-  if (!existsSync(CACHE_PATH)) {
-    const header = `# Perfis de Marcas — Cache de Busca Web
-Gerado automaticamente pelo gerador de briefing quando a marca não está cadastrada em marcas-lpx.md.
-Perfis aqui não foram revisados pela equipe LPX — tratar com cautela, especialmente quanto a regras de conteúdo específicas da marca.
-
-`;
-    writeFileSync(CACHE_PATH, header + profileMarkdown + '\n', 'utf-8');
-  } else {
-    appendFileSync(CACHE_PATH, '\n---\n\n' + profileMarkdown + '\n', 'utf-8');
-  }
 }
