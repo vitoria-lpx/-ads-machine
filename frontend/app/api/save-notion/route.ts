@@ -11,22 +11,32 @@ async function getOrCreateDatabase(notion: Client, parentPageId: string): Promis
       r.object === 'database' &&
       r.title?.some(t => t.plain_text === 'Briefings Gerados'),
   );
-  if (existing) return existing.id;
+  if (existing) {
+    const db = await notion.databases.retrieve({ database_id: existing.id });
+    if (!('Criativo Inspiração' in (db as { properties: Record<string, unknown> }).properties)) {
+      await notion.databases.update({
+        database_id: existing.id,
+        properties: { 'Criativo Inspiração': { url: {} } },
+      });
+    }
+    return existing.id;
+  }
 
   const db = await notion.databases.create({
     parent: { type: 'page_id', page_id: parentPageId },
     title: [{ type: 'text', text: { content: 'Briefings Gerados' } }],
     properties: {
-      'Título':          { title: {} },
-      'Nicho':           { select: { options: [
+      'Título':              { title: {} },
+      'Nicho':               { select: { options: [
         { name: 'Beleza',   color: 'pink' },
         { name: 'Moda',     color: 'purple' },
         { name: 'Wellness', color: 'green' },
       ]}},
-      'Ângulo':          { select: { options: [] } },
-      'Formato':         { select: { options: [] } },
-      'Duração':         { select: { options: [] } },
-      'Data de geração': { date: {} },
+      'Ângulo':              { select: { options: [] } },
+      'Formato':             { select: { options: [] } },
+      'Duração':             { select: { options: [] } },
+      'Data de geração':     { date: {} },
+      'Criativo Inspiração': { url: {} },
     },
   });
   return db.id;
@@ -44,7 +54,7 @@ function toBlocks(text: string) {
 
 export async function POST(req: Request) {
   try {
-    const { briefing, marca, produto, nicho, angulo, formato, duracao } = await req.json();
+    const { briefing, marca, produto, nicho, angulo, formato, duracao, adLibraryUrl } = await req.json();
 
     const token = process.env.NOTION_TOKEN;
     if (!token) return Response.json({ error: 'NOTION_TOKEN não configurado' }, { status: 500 });
@@ -63,6 +73,7 @@ export async function POST(req: Request) {
         'Formato':         { select: { name: formato } },
         'Duração':         { select: { name: duracao } },
         'Data de geração': { date: { start: new Date().toISOString().split('T')[0] } },
+        ...(adLibraryUrl ? { 'Criativo Inspiração': { url: adLibraryUrl } } : {}),
       },
       children: toBlocks(briefing),
     });

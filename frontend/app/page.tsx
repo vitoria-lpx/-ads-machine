@@ -91,9 +91,10 @@ export default function Home() {
           marca:    form.marca,
           produto:  form.produto,
           nicho:    form.nicho,
-          angulo:   refAd?.found ? refAd.angleCategory : '',
-          formato:  'Reels',
-          duracao:  '45s',
+          angulo:      refAd?.found ? refAd.angleCategory : '',
+          formato:     'Reels',
+          duracao:     '45s',
+          adLibraryUrl: refAd?.found ? refAd.adLibraryUrl : '',
         }),
       });
       const data = await res.json();
