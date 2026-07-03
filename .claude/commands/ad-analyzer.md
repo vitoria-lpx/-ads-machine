@@ -190,7 +190,7 @@ Extract `file.uri` from the response.
   "contents": [{
     "parts": [
       { "fileData": { "mimeType": "video/mp4", "fileUri": "{file_uri}" } },
-      { "text": "Analyze this beauty/skincare video ad. Respond in 6 short lines:\n1. Visual format (GRWM tutorial / product application close-up / texture macro / before-after / talking head / flat lay / other)\n2. Lighting: Natural/Organic OR Studio/Ring Light OR Mixed — explain why in one sentence\n3. Skin focus: realistic texture visible OR stylized/filtered\n4. Color palette (2-3 words)\n5. Production quality: Professional studio / Semi-pro creator / Casual UGC\n6. Key attention element (what grabs the eye first)" }
+      { "text": "Analise este anúncio em vídeo de beleza/skincare. Responda em português brasileiro, em 6 linhas curtas:\n1. Formato visual (tutorial GRWM / close-up de aplicação do produto / macro de textura / antes-depois / talking head / flat lay / outro)\n2. Iluminação: Natural/Orgânica OU Estúdio/Ring Light OU Mista — explique o porquê em uma frase\n3. Foco na pele: textura realista visível OU estilizada/filtrada\n4. Paleta de cores (2-3 palavras)\n5. Qualidade de produção: Estúdio profissional / Criador semi-profissional / UGC casual\n6. Elemento de atenção principal (o que chama a atenção primeiro)" }
     ]
   }]
 }
@@ -211,13 +211,23 @@ Pass the image URL directly — no upload needed:
   "contents": [{
     "parts": [
       { "imageUrl": { "url": "{image_url}" } },
-      { "text": "Analyze this beauty/skincare image ad. Respond in 6 short lines:\n1. Visual format\n2. Lighting: Natural/Organic OR Studio/Ring Light OR Mixed\n3. Skin focus: realistic texture visible OR stylized/filtered\n4. Color palette (2-3 words)\n5. Production quality: Professional studio / Semi-pro creator / Casual UGC\n6. Key attention element" }
+      { "text": "Analise este anúncio em imagem de beleza/skincare. Responda em português brasileiro, em 6 linhas curtas:\n1. Formato visual\n2. Iluminação: Natural/Orgânica OU Estúdio/Ring Light OU Mista\n3. Foco na pele: textura realista visível OU estilizada/filtrada\n4. Paleta de cores (2-3 palavras)\n5. Qualidade de produção: Estúdio profissional / Criador semi-profissional / UGC casual\n6. Elemento de atenção principal" }
     ]
   }]
 }
 ```
 
-Store each response in the `Visual Style` field. Lead with the lighting classification — UGC-style natural lighting tends to outperform polished studio shots in this niche.
+**Step 5d — Extract the full response text:**
+
+The Gemini response JSON has the analysis at `candidates[0].content.parts[0].text`. That field is a multi-line string (an intro sentence followed by 6 numbered points) — extract it **verbatim, in full**. Do not paraphrase, summarize, retype from memory, or take only the first line/sentence — the whole point of this step is to preserve Gemini's exact wording so the analysis is reusable later.
+
+```bash
+jq -r '.candidates[0].content.parts[0].text' response.json
+```
+
+Sanity check before writing: the extracted text should be roughly 300–600 characters (an intro line + 6 points). **If it's under ~100 characters, you have truncated it — go back and re-extract the full field instead of writing a partial value.** A value like `"Aqui está a análise do anúncio em vídeo:"` with nothing after it is the truncation bug, not a valid result.
+
+Store the full extracted text in the `Visual Style` field (see Step 7 — it needs to be chunked into 2000-char rich_text items like Transcript, though in practice a 6-point analysis rarely exceeds one chunk).
 
 If `GEMINI_API_KEY` is not configured, skip this step silently.
 
@@ -270,7 +280,7 @@ Use Notion MCP: update_page
     "Pipeline Status": { select: { name: "Ready" } }
 ```
 
-Atenção: rich_text tem limite de 2000 caracteres por item. Se o transcript for maior, dividir em chunks de 2000 chars (até 100 items por propriedade).
+Atenção: rich_text tem limite de 2000 caracteres por item. Se o transcript (ou, mais raramente, o visual_analysis) for maior, dividir em chunks de 2000 chars (até 100 items por propriedade). Nunca escrever um valor parcial/resumido para caber num único item — sempre chunkar em vez de cortar.
 
 ---
 
