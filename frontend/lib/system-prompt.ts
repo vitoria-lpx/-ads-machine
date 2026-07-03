@@ -4,7 +4,7 @@ Você recebe: o perfil completo da marca, um anúncio de referência (hook copy 
 
 COMO TRABALHAR:
 
-1. Leia o perfil da marca e identifique: produto, tom de voz, o que NUNCA fazer, regras de conteúdo e ideias de conteúdo que funcionam. Se o perfil não especificar tom de voz, use tom próximo e natural como padrão.
+1. Leia o perfil da marca e identifique: produto, tom de voz, o que NUNCA fazer, regras de conteúdo e ideias de conteúdo que funcionam. Se o perfil não especificar tom de voz, use tom próximo e natural como padrão. Se o perfil não tiver uma seção "O que NUNCA fazer" (perfis obtidos por busca automática na web não têm essa seção), NÃO invente restrições — sinalize isso explicitamente no campo correspondente do output em vez de deixá-lo vazio ou preenchê-lo com suposições.
 
 2. Leia o anúncio de referência completo (hook copy + transcript). Entenda a estrutura: como abre, qual tensão cria, como desenvolve o argumento, como fecha. O Angle Category indica o ângulo de comunicação.
 
@@ -94,7 +94,7 @@ Cenários: {mínimo 2 locais específicos e coerentes com o produto e as regras 
 Câmera: {instruções específicas por beat — enquadramento, movimento}
 Cortes: {ritmo — a cada beat, máx 5–7s por cena}
 Energia: {tom de voz e postura — baseado no perfil da marca}
-O que NUNCA fazer: {extrair diretamente do campo "O que NUNCA fazer no conteúdo" do perfil da marca}
+O que NUNCA fazer: {extrair diretamente do campo "O que NUNCA fazer no conteúdo" do perfil da marca. Se o perfil não tiver essa seção, escreva: "⚠️ Não disponível — perfil obtido via busca automática, confirmar regras de conteúdo com a marca antes de gravar"}
 
 ─────────────────────────────────────────────
 CHECKLIST ANTES DE ENVIAR
@@ -104,7 +104,7 @@ CHECKLIST ANTES DE ENVIAR
 - [ ] Tem pelo menos 2 quebras de objeção?
 - [ ] CTA tem direcionamento + incentivo + urgência?
 - [ ] Cupom aparece falado E como Text overlay?
-- [ ] Nenhuma regra do "NUNCA fazer" do perfil da marca foi violada?
+- [ ] Nenhuma regra do "NUNCA fazer" do perfil da marca foi violada? (marcar N/A se o perfil não tiver essa seção)
 
 ─────────────────────────────────────────────
 COPY DE PLATAFORMA
@@ -130,35 +130,12 @@ type RefAd = {
   nicho_divergente: boolean;
 } | null;
 
-// ─── Brand profile extractor ──────────────────────────────────────────────────
-
-function extractMarcaSection(content: string, marca: string): string {
-  if (!content || !marca) return '';
-  const marcaLower = marca.trim().toLowerCase();
-  const lines = content.split('\n');
-  let start = -1;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith('## ')) {
-      const headerLower = lines[i].slice(3).toLowerCase();
-      if (headerLower.includes(marcaLower) || marcaLower.split(' ').some(w => w.length > 3 && headerLower.includes(w))) {
-        start = i;
-      } else if (start !== -1) {
-        return lines.slice(start, i).join('\n').trim();
-      }
-    }
-  }
-
-  return start !== -1 ? lines.slice(start).join('\n').trim() : '';
-}
-
 // ─── Prompt builder ───────────────────────────────────────────────────────────
 
 export function buildUserPrompt(
   inputs: { marca: string; produto: string; nicho: string; refAd?: RefAd },
-  marcasContent: string,
+  perfil: string,
 ) {
-  const perfil = extractMarcaSection(marcasContent, inputs.marca);
   const perfilBlock = perfil
     ? `PERFIL DA MARCA:\n${perfil}`
     : `PERFIL DA MARCA:\nMarca: ${inputs.marca}\nProduto: ${inputs.produto}\nNicho: ${inputs.nicho}\n(Perfil não encontrado — use tom próximo e natural como padrão)`;

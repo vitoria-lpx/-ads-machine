@@ -32,6 +32,13 @@ type RefAd =
     }
   | { found: false };
 
+type BrandProfile = {
+  perfil: string;
+  perfil_via_busca_web: boolean;
+  perfil_do_cache: boolean;
+  perfil_cache_data?: string;
+};
+
 export default function Home() {
   const [form, setForm] = useState({ marca: '', produto: '', nicho: '' });
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -39,6 +46,7 @@ export default function Home() {
   const [notionStatus, setNotionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [notionError, setNotionError] = useState('');
   const [refAd, setRefAd] = useState<RefAd | null>(null);
+  const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
   const [isFetchingRef, setIsFetchingRef] = useState(false);
 
   const { completion, complete, isLoading } = useCompletion({
@@ -52,17 +60,28 @@ export default function Home() {
     e.preventDefault();
     if (!form.marca || !form.produto || !form.nicho) return;
     setRefAd(null);
+    setBrandProfile(null);
     setIsFetchingRef(true);
 
     let refAdData: RefAd = { found: false };
+    let brandProfileData: BrandProfile | null = null;
     try {
-      const res = await fetch('/api/reference-ad', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nicho: form.nicho }),
-      });
-      refAdData = await res.json();
+      const [refRes, brandRes] = await Promise.all([
+        fetch('/api/reference-ad', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nicho: form.nicho }),
+        }),
+        fetch('/api/brand-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marca: form.marca, produto: form.produto, nicho: form.nicho }),
+        }),
+      ]);
+      refAdData = await refRes.json();
+      brandProfileData = await brandRes.json();
       setRefAd(refAdData);
+      setBrandProfile(brandProfileData);
     } catch {
       refAdData = { found: false };
     } finally {
@@ -75,6 +94,7 @@ export default function Home() {
         produto: form.produto,
         nicho:   form.nicho,
         refAd:   refAdData.found ? refAdData : null,
+        perfil:  brandProfileData?.perfil ?? '',
       },
     });
   };
@@ -213,6 +233,15 @@ export default function Home() {
         {/* Output */}
         <main className="flex-1 flex flex-col gap-3">
           <div className="bg-white rounded-xl border border-[#e0e0e0] p-6 min-h-[500px] flex flex-col">
+
+            {/* Web-search brand profile fallback warning — shown above everything else */}
+            {brandProfile?.perfil_via_busca_web && (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
+                {brandProfile.perfil_do_cache
+                  ? `⚠️ Marca não cadastrada no perfil interno — usando perfil buscado automaticamente na web em ${brandProfile.perfil_cache_data}. Revise com cuidado, especialmente regras de conteúdo específicas da marca.`
+                  : '⚠️ Marca não cadastrada no perfil interno — informações buscadas automaticamente na web. Revise com cuidado antes de aprovar, especialmente regras de conteúdo específicas da marca (o que pode ou não pode ser dito/mostrado), que não foram capturadas por essa busca.'}
+              </p>
+            )}
 
             {/* Reference card — shown above script */}
             {refAd?.found && (
