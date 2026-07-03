@@ -3,8 +3,14 @@ import { anthropic } from '@ai-sdk/anthropic';
 import type { Client } from '@notionhq/client';
 
 const CACHE_DATE_RE = /_Perfil gerado via busca web em (\d{2}\/\d{2}\/\d{4})/;
-const CACHE_DB_NAME = 'Perfis de Marcas (Busca Web)';
-const CACHE_PARENT_PAGE_ID = '38a3ef898c4e80dfa9e7ce94964af165';
+
+// "Perfis de Marcas (Busca Web)" database, created once under the same parent
+// page as "Briefings Gerados". Hardcoded (matching the Swipe File DB_ID
+// convention in app/api/reference-ad/route.ts) rather than found via
+// notion.search() on every call — Notion's search index lags behind writes,
+// so two requests close in time would each fail to find the other's
+// just-created database and create a duplicate.
+const CACHE_DB_ID = '3923ef89-8c4e-8192-a9aa-e1aca63abe4e';
 
 // ─── Section extraction (shared by marcas-lpx.md and marcas-web-cache.md) ─────
 
@@ -36,29 +42,7 @@ export function extractCacheDate(section: string): string | undefined {
 //
 // Vercel functions run on a read-only filesystem (except /tmp, which isn't
 // shared across invocations or persisted across deploys), so this cache
-// can't live on disk in production — it's a small Notion database instead,
-// following the same get-or-create pattern as app/api/save-notion/route.ts.
-
-async function getOrCreateCacheDb(notion: Client): Promise<string> {
-  const search = await notion.search({
-    query: CACHE_DB_NAME,
-    filter: { property: 'object', value: 'database' },
-  });
-
-  const existing = search.results.find(
-    (r: any) => r.object === 'database' && r.title?.some((t: any) => t.plain_text === CACHE_DB_NAME),
-  );
-  if (existing) return existing.id;
-
-  const db = await notion.databases.create({
-    parent: { type: 'page_id', page_id: CACHE_PARENT_PAGE_ID },
-    title: [{ type: 'text', text: { content: CACHE_DB_NAME } }],
-    properties: {
-      'Marca': { title: {} },
-    },
-  });
-  return db.id;
-}
+// can't live on disk in production — it's a small Notion database instead.
 
 function textToBlocks(text: string) {
   const chunks: string[] = [];
@@ -89,8 +73,7 @@ export async function findCachedProfile(notion: Client, marca: string): Promise<
   if (!marca) return '';
   const marcaLower = marca.trim().toLowerCase();
 
-  const dbId = await getOrCreateCacheDb(notion);
-  const res = await notion.databases.query({ database_id: dbId, page_size: 100 });
+  const res = await notion.databases.query({ database_id: CACHE_DB_ID, page_size: 100 });
 
   const match = (res.results as any[]).find(page => {
     const title = (page.properties?.Marca?.title ?? []).map((t: any) => t.plain_text ?? '').join('').toLowerCase();
@@ -104,10 +87,9 @@ export async function findCachedProfile(notion: Client, marca: string): Promise<
 
 export async function saveProfileToCache(notion: Client, profileMarkdown: string): Promise<void> {
   const marca = /^## (.+)$/m.exec(profileMarkdown)?.[1]?.trim() ?? 'DESCONHECIDA';
-  const dbId = await getOrCreateCacheDb(notion);
 
   await notion.pages.create({
-    parent: { database_id: dbId },
+    parent: { database_id: CACHE_DB_ID },
     properties: {
       'Marca': { title: [{ text: { content: marca } }] },
     },
