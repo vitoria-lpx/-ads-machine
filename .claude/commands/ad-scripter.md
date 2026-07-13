@@ -70,6 +70,28 @@ Apresentar ao usuário e deixar ele escolher uma ou mais.
 
 ---
 
+## Passo 1b: Buscar Anúncio de Referência Completo
+
+Se a ideia escolhida tiver `Source Ad` preenchido, buscar o registro completo desse anúncio específico na Swipe File (não os top 5 genéricos):
+
+```
+Use Airtable MCP: list_records
+  base_id: {from CLAUDE.md}
+  table_id: {Swipe File table ID}
+  filter: {Ad Archive ID} = '{source_ad_id}'
+  fields: Body Text, Transcript, Hook Copy, CTA Type, CTA Text, Angle Category, Ad Format Type, Days Active
+```
+
+Extrair do Transcript/Body Text os detalhes concretos que tornam o anúncio original fiel:
+- Números e claims específicos (preço, quantidade, prazo, percentual)
+- Objeções específicas levantadas e como foram respondidas
+- Tipo específico de prova social (depoimento com detalhe, tempo de uso, resultado nomeado)
+- Mecanismo/benefício específico do produto mencionado
+
+Esses detalhes são a **âncora de fidelidade** do script -- devem ser traduzidos (não genéricos) pro produto do usuário nos Passos 4 e 5. Se não houver Source Ad, pular esta etapa e seguir com a inspiração genérica dos top 5 Long-Runners, como já é hoje.
+
+---
+
 ## Passo 2: Confirmar Detalhes
 
 Confirmar com o usuário:
@@ -126,6 +148,7 @@ CTA ({timing}):
 - Cada beat deve ter uma direção visual
 - Gerar 2 variações de hook além do hook principal
 - **O ângulo define a estratégia, não necessariamente a abertura do vídeo.** Quando ângulo e dor estão presentes, a dor sempre abre o vídeo. O ângulo guia como o body e o fechamento são construídos.
+- Usar os detalhes concretos extraídos no Passo 1b (números, objeções, prova social) traduzidos pro produto do usuário -- nunca reescrever de forma genérica quando o original tinha algo específico.
 
 ### LPX Methodology Rules (from `reference/metodologia-lpx.md`)
 
@@ -229,6 +252,7 @@ CHECKLIST ANTES DE ENVIAR
 - [ ] Benefícios são mostrados com direção de câmera?
 - [ ] CTA tem direcionamento + incentivo + urgência?
 - [ ] Cupom aparece falado E escrito na tela?
+- [ ] Detalhes concretos do anúncio de referência (números/objeções/prova) foram traduzidos, não genéricos?
 
 ─────────────────────────────────────────────
 COPY DE PLATAFORMA
@@ -286,3 +310,4 @@ Próximo passo: rode /ad-brief para gerar o card de filmagem, ou /ad-launch se o
 7. **Uma oferta por anúncio.** Nunca empilhar múltiplos CTAs ou vender várias coisas ao mesmo tempo.
 8. **Aplicar a metodologia LPX completa.** Hook segmenta + cria tensão + conecta ao body. Body mostra (não só narra) + ≥2 quebras de objeção + prova social. CTA tem direcionamento + desconto + urgência. Cupom falado E mostrado na tela. Ver `reference/metodologia-lpx.md`.
 9. **Quando o ângulo for Offer/Urgency com dor definida**, nunca abrir com a oferta. Hook abre com a dor, body desenvolve a solução, CTA fecha com urgência e oferta.
+10. **Priorizar a âncora de fidelidade do Passo 1b sobre a inspiração genérica.** Quando a ideia tem um Source Ad específico, os detalhes concretos desse anúncio (não os top 5 genéricos) guiam a fidelidade do script.

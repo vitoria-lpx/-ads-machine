@@ -61,7 +61,7 @@ Wait for the user to pick one.
 
 ## Step 2: Analyze the Winner
 
-Read the full record and break down what makes it work:
+Read the full record -- including the full `Body Text` and `Transcript`, not just Hook Copy -- and break down what makes it work:
 
 - **Hook pattern:** What structure does the hook use? (question, statement, challenge, proof)
 - **Angle:** What emotional lever does it pull? (pain, aspiration, fear, curiosity)
@@ -69,6 +69,7 @@ Read the full record and break down what makes it work:
 - **Framework:** What copy structure does it follow? (PAS, AIDA, Story, Before/After)
 - **CTA:** What action does it drive?
 - **Length:** How long is the copy / video?
+- **Concrete details:** What specific numbers, claims, objections, and proof does it use? (price/quantity/timeframe mentioned, objections raised and answered, the exact type of social proof -- a named result, a duration of use, a stat)
 
 Present the breakdown to the user before generating variations.
 
@@ -76,7 +77,9 @@ Present the breakdown to the user before generating variations.
 
 ## Step 3: Generate 5 Variations
 
-Each variation must be DIFFERENT from the others. Use these multiplication rules:
+Each variation must be DIFFERENT from the others in hook/angle/format/framework -- but the concrete details from Step 2 (specific numbers, objections, proof) must carry through into every variation, translated to the user's offer, not dropped or genericized. "Sofre com dor nas costas há anos" beats "sofre com dor nas costas" if the original specified a duration; "3 em cada 4 usuárias relataram pele mais macia em 7 dias" beats "muitas pessoas notaram resultados" if the original had a real stat.
+
+Use these multiplication rules:
 
 ### Variation 1: Same Angle, Different Hook
 - Keep the winning angle (e.g. Social Proof)
@@ -230,3 +233,4 @@ Present the full matrix and let the user choose how many to produce.
 4. **Create NEW records** in the Pipeline, do not update existing ones.
 5. **Link to the source.** Every variation should reference which winner inspired it.
 6. **Respect production capabilities.** If the user is a solo operator, do not suggest elaborate multi-person shoots. Keep formats practical.
+7. **Preserve concrete details, don't genericize.** Every variation must carry forward the specific numbers, objections, and proof type identified in Step 2 -- translated to the user's business, never replaced with vague language.

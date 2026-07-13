@@ -19,7 +19,7 @@ You are a creative analysis system. You process unanalyzed ads from the Swipe Fi
    - Groq accepts `.mp4` directly -- no audio extraction needed
    - Fallback: OpenAI Whisper API (`OPENAI_API_KEY` in `.env`)
    - If neither available, skip transcription and note it in the summary
-5. **Claude API key** in `.env` as `ANTHROPIC_API_KEY` (optional -- for visual analysis via Claude Haiku)
+4. **Claude API key** in `.env` as `ANTHROPIC_API_KEY` (optional -- for visual analysis via Claude Haiku)
 
 ---
 
@@ -45,21 +45,23 @@ Se não encontrar → dizer ao usuário para rodar `/ad-poller` primeiro para cr
 
 Check if the user passed a niche argument (e.g. `/ad-analyzer Moda`, `/ad-analyzer Beleza`, `/ad-analyzer Wellness`).
 
-- **With niche argument:** filter by `Transcript is empty` AND `Video URL is not empty` AND `Nicho = "{niche}"`.
-- **Without niche argument:** filter by `Transcript is empty` AND `Video URL is not empty`.
+- **With niche argument:** filter by `Transcript is empty` AND `Video URL is not empty` AND `Pipeline Status != Rejected` AND `Nicho = "{niche}"`.
+- **Without niche argument:** filter by `Transcript is empty` AND `Video URL is not empty` AND `Pipeline Status != Rejected`.
 
 ```
 Use Notion MCP: query_database
   database_id: {swipe_db_id}
   filter (com niche):
     and:
-      - property: "Transcript"  rich_text: { is_empty: true }
-      - property: "Video URL"   url:       { is_not_empty: true }
-      - property: "Nicho"       select:    { equals: "{niche}" }
+      - property: "Transcript"      rich_text: { is_empty: true }
+      - property: "Video URL"       url:       { is_not_empty: true }
+      - property: "Pipeline Status" select:    { does_not_equal: "Rejected" }
+      - property: "Nicho"           select:    { equals: "{niche}" }
   filter (sem niche):
     and:
-      - property: "Transcript"  rich_text: { is_empty: true }
-      - property: "Video URL"   url:       { is_not_empty: true }
+      - property: "Transcript"      rich_text: { is_empty: true }
+      - property: "Video URL"       url:       { is_not_empty: true }
+      - property: "Pipeline Status" select:    { does_not_equal: "Rejected" }
   (paginar com next_cursor até has_more = false)
 ```
 
@@ -99,6 +101,7 @@ curl -s https://api.groq.com/openai/v1/audio/transcriptions \
   -H "Authorization: Bearer {GROQ_API_KEY}" \
   -F model="whisper-large-v3-turbo" \
   -F language="pt" \
+  -F response_format="verbose_json" \
   -F file="@/tmp/ads-machine/{ad_archive_id}.mp4"
 ```
 
@@ -107,10 +110,20 @@ curl -s https://api.groq.com/openai/v1/audio/transcriptions \
 curl -s https://api.openai.com/v1/audio/transcriptions \
   -H "Authorization: Bearer {OPENAI_API_KEY}" \
   -F model="whisper-1" \
+  -F response_format="verbose_json" \
   -F file="@/tmp/ads-machine/{ad_archive_id}.mp4"
 ```
 
 If none is available, skip transcription. Log: `Whisper not available -- skipping transcription for {count} video ads.`
+
+### 2b2. Check Duration + Voice -- Gate: >=30s AND has speech
+
+`response_format=verbose_json` returns `duration` (seconds, float) and `text` in the same call -- no extra download or tool needed.
+
+- If `duration < 30` -> reject. Log: `[{ad_archive_id}] Rejected -- duration {duration}s < 30s`
+- Else if `text.strip()` is empty (music-only, silent, or pure text-overlay video with no spoken audio) -> reject. Log: `[{ad_archive_id}] Rejected -- no voice detected (empty transcript)`
+- If rejected: delete the temp file, mark `Pipeline Status = Rejected` (lightweight update, see Step 7), skip hook extraction (2c), skip Steps 3-5 (classification, visual analysis) for this ad, and continue to the next ad.
+- This gate only runs if Whisper actually ran. If Whisper was skipped (no API key), do NOT reject on this basis -- leave the ad unanalyzed, same as today.
 
 ### 2c. Extract Hook
 Split transcript on sentence boundaries (`. ! ?`). Take the first 1-2 complete sentences.
@@ -265,7 +278,18 @@ Format, angle, hook, CTA type are FILTERS for browsing -- not scoring factors. A
 
 ## Step 7: Update Notion Records
 
-Atualizar cada page individualmente:
+**Ads rejeitados no Step 2b2** (duration <30s ou sem voz) levam um update leve -- não rodaram os Steps 3-5:
+
+```
+Use Notion MCP: update_page
+  page_id: {page.id}
+  properties:
+    "Pipeline Status": { select: { name: "Rejected" } }
+    "Days Active":     { number: days_active }
+    "Longevity Tier":  { select: { name: tier } }
+```
+
+**Demais ads** levam o update completo. Atualizar cada page individualmente:
 
 ```
 Use Notion MCP: update_page
@@ -333,6 +357,8 @@ Ads processed: {total}
   Videos transcribed: {transcribed}
   Visuals analyzed: {visual_count}
   Skipped (no media): {skipped}
+  Rejected -- duration <30s: {rejected_duration}
+  Rejected -- no voice detected: {rejected_voice}
 
 By angle:
   Pain-to-Solution: {count}
@@ -406,3 +432,4 @@ After analysis, extract hooks from Long-Runner ads (60d+) and append them to `re
 9. **Gemini processes full video files** via the File API. Upload → analyze → delete. Always delete after analysis to avoid storage charges.
 10. **Groq rate limit:** 7,200 audio seconds/hour on the free tier. With ~30s ads, that's ~240 videos/hour. If you hit the limit, pause and retry after 60s.
 11. **Gemini rate limit:** 1,000 requests/minute on the paid tier. No issue for this use case.
+12. **Duration + voice gates run right after transcription (Step 2b2), before any classification.** Uses `duration`/`text` from the same Whisper `verbose_json` response -- no separate download or ffprobe needed. Ads under 30s or with an empty transcript get `Pipeline Status = Rejected` and stop there (no angle/format classification, no Gemini). The Step 1 filter excludes Rejected ads from future runs.

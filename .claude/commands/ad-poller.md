@@ -65,7 +65,7 @@ Use Notion MCP: create_database
     "Visual Style":     { rich_text: {} }
     "Video URL":        { url: {} }
     "Scrape Date":      { date: {} }
-    "Pipeline Status":  { select: { options: [{name:"New"},{name:"Ready"},{name:"Done"}] } }
+    "Pipeline Status":  { select: { options: [{name:"New"},{name:"Ready"},{name:"Done"},{name:"Rejected"}] } }
 ```
 
 Guardar o ID retornado como `swipe_db_id`.
@@ -74,24 +74,35 @@ Guardar o ID retornado como `swipe_db_id`.
 
 ## Step 1: Load Active Competitors
 
-Fetch all records from Competitors table where `Status = Active`:
+Fetch all records from Competitors table:
 
 ```
 Use Airtable MCP: list_records
   base_id: {from CLAUDE.md}
   table_id: {Competitors table ID}
-  filter: {Status} = 'Active'
-  fields: Name, Facebook Page ID
+  fields: Name, Facebook Page ID, Nicho
 ```
 
 Each competitor MUST have a `Facebook Page ID`. Skip any without one and warn the user.
 
+Group competitors by Nicho and set per-brand targets:
+
+| Nicho | Marcas | Cota base/marca | Buscar/marca | Cota/nicho |
+|-------|--------|-----------------|--------------|-----------|
+| Beleza | 10 | 5 Long-Runners | 60 | 50 |
+| Wellness | 10 | 5 Long-Runners | 60 | 50 |
+| Moda | 6 | 8 Long-Runners | 70 | 48 |
+
+A cota base por marca é um **piso, não um teto**. Se uma marca não tiver Long-Runners suficientes para bater sua cota, a diferença é redistribuída para outras marcas do mesmo nicho que tiverem mais candidatos do que a própria cota (ver Step 3).
+
+**Target total: ~148 Long-Runner video ads por execução (cota/nicho acima)**
+
 Print the competitor list:
 ```
-Found {N} active competitors:
-  1. {Name} ({Page ID})
-  2. {Name} ({Page ID})
-  ...
+Found {N} competitors:
+  Beleza ({N}): {Name}, {Name}, ...
+  Wellness ({N}): {Name}, {Name}, ...
+  Moda ({N}): {Name}, {Name}, ...
 ```
 
 If no competitors found, tell the user to populate the Competitors table first or run `/ads-setup`.
@@ -137,9 +148,12 @@ Official Apify actor. 16k+ users, 99.4% success rate. Most reliable long-term.
 ```json
 {
   "startUrls": [{"url": "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&is_targeted_country=false&media_type=video&search_type=page&sort_data[direction]=desc&sort_data[mode]=total_impressions&view_all_page_id={PAGE_ID}"}],
-  "resultsLimit": 50
+  "resultsLimit": 60
 }
 ```
+
+`resultsLimit` por nicho: **60** para Beleza e Wellness, **70** para Moda.
+Busca volume maior para compensar: (1) DCOs e anúncios com menos de 60 dias, e (2) o filtro de duração ≥30s + presença de voz que roda depois no `/ad-analyzer` e descarta parte dos candidatos antes de contarem pra cota.
 
 Key URL parameters:
 - `active_status=all` -- pulls active AND historical/inactive ads
@@ -189,17 +203,71 @@ Simplest input -- takes Page ID directly.
 
 ## Step 3: Filter and Dedup
 
-**Filter before dedup — discard immediately:**
+**Filter before dedup — two gates:**
 
+**Gate 1 — Format (discard immediately):**
 ```python
 ALLOWED_FORMATS = {"VIDEO"}
 
-filtered = [ad for ad in scraped_ads if ad["snapshot"]["displayFormat"] in ALLOWED_FORMATS]
-discarded = len(scraped_ads) - len(filtered)
-# Log: f"[{competitor}] Discarded {discarded} non-video ads (DCO/DPA/IMAGE/CAROUSEL)"
+video_ads = [ad for ad in scraped_ads if ad["snapshot"]["displayFormat"] in ALLOWED_FORMATS]
+discarded_format = len(scraped_ads) - len(video_ads)
+# Log: f"[{competitor}] Discarded {discarded_format} non-video ads (DCO/DPA/IMAGE/CAROUSEL)"
 ```
 
-Only `displayFormat = "VIDEO"` ads proceed. DCO, DPA, IMAGE, and CAROUSEL are silently dropped — they either have no real video or use dynamic template copy (`{{product.name}}`). Log the discard count per competitor.
+**Gate 2 — Long-Runner only (60d+):**
+```python
+from datetime import date, datetime
+
+today = date.today()
+
+def calc_days_active(ad):
+    start_str = ad.get('startDateFormatted') or ''
+    start_ts = ad.get('startDate')
+    if start_str:
+        try:
+            start = datetime.fromisoformat(start_str.replace('Z', '+00:00')).date()
+        except:
+            start = date.fromtimestamp(start_ts) if start_ts else None
+    elif start_ts:
+        start = date.fromtimestamp(start_ts)
+    else:
+        return 0
+    return (today - start).days
+
+long_runners = [ad for ad in video_ads if calc_days_active(ad) >= 60]
+discarded_tier = len(video_ads) - len(long_runners)
+# Log: f"[{competitor}] Discarded {discarded_tier} video ads with <60 days active"
+```
+
+Ads com menos de 60 dias são descartados e **nunca inseridos no Notion**.
+
+**Quota com redistribuição — rodar só depois que TODAS as marcas do nicho tiverem passado pelos Gates 1 e 2:**
+```python
+quota_base = {"Beleza": 5, "Wellness": 5, "Moda": 8}[nicho]
+
+# 1. Pool de long_runners por marca, ordenado por dias ativos desc
+pools = {brand: sorted(lr, key=calc_days_active, reverse=True)
+         for brand, lr in long_runners_by_brand.items()}
+
+# 2. Alocação garantida: até quota_base por marca
+selected = {brand: pool[:quota_base] for brand, pool in pools.items()}
+
+# 3. Sobra (acima da cota) vira pool de redistribuição; déficit = quanto falta
+leftover_pool, deficit = [], 0
+for brand, pool in pools.items():
+    if len(pool) < quota_base:
+        deficit += quota_base - len(pool)
+    else:
+        leftover_pool += pool[quota_base:]
+
+# 4. Preencher déficit com o excedente de outras marcas, por dias ativos desc
+leftover_pool.sort(key=calc_days_active, reverse=True)
+for ad in leftover_pool[:deficit]:
+    selected[ad.brand].append(ad)
+
+# Log por marca: f"[{brand}] {len(selected[brand])} selecionados (base {quota_base}{f' + {extra} redistribuídos' if extra else ''})"
+# Log por nicho: f"[{nicho}] {total}/{niche_cap} Long-Runners (déficit coberto: {len(leftover_pool[:deficit])}/{deficit})"
+```
 
 Before inserting, fetch existing records from the Notion Swipe File:
 
@@ -229,6 +297,8 @@ Montar map: `{ archiveId → { pageId, adActiveStatus } }`
 ---
 
 ## Step 4: Transform and Insert New Ads
+
+**Only Long-Runner (60d+) real video ads reach this step. DCO, non-video, and sub-60d ads are discarded in Step 3.**
 
 For each new ad, transform the Apify response into an Airtable record.
 
@@ -273,6 +343,8 @@ Instead, always fetch items **without** the `fields` parameter (or with `clean: 
 - SD fallback: same paths with `videoSdUrl`
 
 If the Video URL is still empty after extraction, log it and leave the Airtable field blank. Never skip inserting the record.
+
+**CRITICAL: Never strip the query string from Video URL.** The URL's query parameters (`_nc_ohc`, `oh`, `oe`, etc.) are Facebook CDN's authorization signature, not tracking cruft -- without them the download returns 403 Forbidden regardless of how fresh the URL is. Insert the Video URL exactly as returned by Apify, including everything after the `?`. Confirmed live 2026-07-10: a truncated URL (cut at `.mp4`, no query string) failed with 403; the same URL with its full query string succeeded (200 OK).
 
 **IMPORTANT: Output fields vary between actors.** When processing results:
 1. Fetch full items (no `fields` restriction) to avoid losing nested array data
@@ -388,21 +460,23 @@ If Slack is not configured, skip this step silently.
 === Ad Poller Complete ===
 
 Competitors scraped: {N}
-Total ads found: {total}
-  New ads added: {new}
-  Already existed: {existing}
-  Marked killed: {killed}
-  Discarded (DCO/DPA/non-video): {discarded}
+Target: ~148 Long-Runner video ads (50 Beleza / 50 Wellness / 48 Moda)
 
-Longevity breakdown:
-  Long-Runners (60d+): {count} -- PROVEN WINNERS
-  Performers (30-59d): {count}
-  Solid (14-29d): {count}
-  Testing (7-13d): {count}
-  Killed (<7d): {count}
+Novos Long-Runners inseridos: {new}
+Já existiam (pulados): {existing}
 
-By competitor:
-  {Name}: {count} ads ({video} video, {image} image, {dco} DCO)
+Por nicho:
+  Beleza: {count}/50 Long-Runners inseridos (déficit redistribuído: {n})
+  Wellness: {count}/50 Long-Runners inseridos (déficit redistribuído: {n})
+  Moda: {count}/48 Long-Runners inseridos (déficit redistribuído: {n})
+
+Descartados no total:
+  Formato inválido (DCO/DPA/IMAGE): {total_format_discarded}
+  Vídeo mas <60 dias ativos: {total_tier_discarded}
+  Acima da cota do nicho (sem sobra pra redistribuir): {total_quota_discarded}
+
+Por marca:
+  {Name}: {inserted} inseridos ({base} base + {extra} redistribuídos) / {long_runners} Long-Runners encontrados / {fetched} buscados
   ...
 
 Unanalyzed ads: {count}
@@ -416,7 +490,7 @@ Next step: Run /ad-analyzer to transcribe and classify new ads.
 1. **Primary actor is `apify/facebook-ads-scraper`** (official Apify, 16k+ users, 99.4% success). Fallback 1: `curious_coder~facebook-ads-library-scraper`. Fallback 2: `whoareyouanas/meta-ad-scraper`.
 2. **Always scrape with `active_status=all`** to get both active and historical/inactive ads. Inactive ads that ran 60+ days are proven winners.
 3. **Start dates may be ISO strings or unix timestamps** depending on the actor. Handle both: try parsing as ISO first, then as unix timestamp.
-4. **DCO ads have no media URLs.** Display format = DCO means Meta assembles the creative dynamically. Still insert the record -- the copy is useful.
+4. **DCO ads are discarded.** `displayFormat = DCO` means Meta assembles the creative dynamically — no real video. Do not insert DCO records.
 5. **Dedup on Ad Archive ID.** Same ad can appear in multiple scrapes.
 6. **Notion não tem batch create para database pages.** Criar e atualizar um page por vez.
 7. **Facebook Page ID vs Profile ID:** The Competitors table stores the Ad Library page ID, NOT the profile ID. Use `apify/facebook-page-contact-information` to resolve page URLs to Ad Library IDs (the `pageAdLibrary.id` field -- NOT `facebookId` or `pageId`).
@@ -425,4 +499,5 @@ Next step: Run /ad-analyzer to transcribe and classify new ads.
 10. **Ad Active Status vs Status:** `Ad Active Status` is what Meta reports (Active/Inactive). `Status` is your swipe file classification (Active, Killed, Winner, Starred). An ad can be `Ad Active Status = Inactive` but `Status = Winner` -- that means it ran successfully and was turned off after scaling.
 11. **If the primary actor fails**, retry once. If it fails again, switch to Fallback 1. If that fails, try Fallback 2. Log which actor worked for each competitor.
 12. **Fallback if all Apify actors are down:** Adicionar pages manualmente na database "Swipe File" no Notion. The rest of the pipeline (analyzer, ideator, scripter) still works.
-13. **Filter before dedup.** Only `displayFormat = VIDEO` ads are inserted. DCO, DPA, IMAGE, and CAROUSEL are discarded after scraping, before the dedup check. Log the count discarded per competitor in the Step 7 summary.
+13. **Filter before dedup — two gates.** (1) Format: only `displayFormat = VIDEO` proceeds; DCO/DPA/IMAGE/CAROUSEL are dropped. (2) Longevity: only ads with days_active >= 60 proceed; sub-60d ads are discarded and never inserted into Notion.
+14. **Per-brand quota with redistribution.** After both filters, each brand gets a base quota (5 for Beleza/Wellness, 8 for Moda) sorted by days active descending. This is a floor, not a ceiling: run quota allocation only after all brands in a niche have been scraped, then fill any brand's deficit from other brands' surplus in the same niche (cross-brand, sorted by days active). Target output: ~148 Long-Runner ads per full run (50 Beleza / 50 Wellness / 48 Moda). `resultsLimit` per brand (60 Beleza/Wellness, 70 Moda) was raised specifically to feed this redistribution and to leave headroom for the ≥30s + has-voice filter applied downstream in `/ad-analyzer`.
