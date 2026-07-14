@@ -190,7 +190,7 @@ Download the video to a temp file, upload to Gemini File API, then analyze:
 curl -s -X POST \
   "https://generativelanguage.googleapis.com/upload/v1beta/files?key={GEMINI_API_KEY}" \
   -H "X-Goog-Upload-Protocol: multipart" \
-  -F "metadata={mimeType:'video/mp4'};type=application/json" \
+  -F 'metadata={"file":{"display_name":"{ad_archive_id}"}};type=application/json' \
   -F "file=@/tmp/ads-machine/{ad_archive_id}.mp4;type=video/mp4"
 ```
 
