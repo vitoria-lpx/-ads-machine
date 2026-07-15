@@ -36,11 +36,11 @@ CTA (3 elementos obrigatórios):
 3. Urgência — urgência natural com o produto ("corre que acaba", prazo real, estoque limitado)
 O cupom deve ser falado EM VOZ ALTA e ter direção de Text overlay na tela.
 
-FORMATO FIXO: Reels, 45 segundos. Todos os timings devem caber dentro de 45s.
+FORMATO FIXO: Reels, 45 segundos. Todos os timings devem caber dentro de 45s — use essa restrição só para calibrar quanto de conteúdo cabe no script, mas NUNCA escreva números de segundos, timings ou durações em nenhuma parte do output (nem no cabeçalho, nem nas direções de câmera, nem em "Cortes", nem em nenhum outro campo livre). Se quiser indicar ritmo, descreva em termos de ordem e brevidade ("corte rápido", "cena curta"), nunca em números.
 
-ORIENTAÇÕES DE PRODUÇÃO:
+DICAS QUE VALEM OURO:
 - Mínimo 2 cenários diferentes (nunca filmar tudo no mesmo lugar)
-- Corte a cada beat — nenhuma cena passa de 5–7 segundos
+- Corte a cada beat — cenas curtas, sem contar segundos
 - Câmera: close no rosto no hook, foco na embalagem ao apresentar o produto, close no resultado durante a aplicação
 - Entonação expressiva — naturalidade acima de perfeição de produção
 
@@ -49,50 +49,39 @@ ORIENTAÇÕES DE PRODUÇÃO:
 FORMATO DO OUTPUT (exatamente nesta estrutura, sem desvios):
 
 === Script: {nome descritivo do anúncio} ===
-Duração: 45s | Formato: Reels
+Formato: Reels
 
 Framework escolhido: {framework} — {justificativa em 1 linha explicando por que esse framework}
 
 ─────────────────────────────────────────────
-HOOK PRINCIPAL (0–3s):
+HOOK PRINCIPAL:
 "{hook}"
 [Visual: {direção de câmera detalhada}]
 [Text overlay: "{texto exato que aparece na tela}"]
 
-VARIAÇÕES DE HOOK
-
-Hook A: "{texto alternativo}"
-Estratégia: {para qual perfil de audiência funciona e qual mecanismo de atenção usa — 1 linha}
-
-Hook B: "{texto alternativo}"
-Estratégia: {para qual perfil de audiência funciona e qual mecanismo de atenção usa — 1 linha}
-
 ─────────────────────────────────────────────
 BODY
 
-[{timing — ex: 3–10s}]:
 "{fala}"
 [Visual: {direção detalhada}]
 
-[{timing}]:
 "{fala}"
 [Visual: {direção detalhada}]
 
-[{timing}]:
 "{fala}"
 [Visual: {direção detalhada}]
 
 ─────────────────────────────────────────────
-CTA ({timing}):
+CTA:
 "{fala do CTA}"
 [Visual: {direção}]
 [Text overlay: "{cupom ou texto de urgência em destaque}"]
 
 ─────────────────────────────────────────────
-ORIENTAÇÕES DE PRODUÇÃO
+DICAS QUE VALEM OURO
 Cenários: {mínimo 2 locais específicos e coerentes com o produto e as regras da marca}
 Câmera: {instruções específicas por beat — enquadramento, movimento}
-Cortes: {ritmo — a cada beat, máx 5–7s por cena}
+Cortes: {ritmo — corte a cada beat, cenas curtas}
 Energia: {tom de voz e postura — baseado no perfil da marca}
 O que NUNCA fazer: {extrair diretamente do campo "O que NUNCA fazer no conteúdo" do perfil da marca. Se o perfil não tiver essa seção, escreva: "⚠️ Não disponível — perfil obtido via busca automática, confirmar regras de conteúdo com a marca antes de gravar"}
 
