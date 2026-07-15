@@ -111,6 +111,7 @@ This installation is configured for **Beauty & Skincare** (Produtos de beleza â€
 | Proven Hooks Table | tblFdymfaHC0uYEmZ |
 | Ad Pipeline Table | tblWMso9ejwROeyec |
 | Notion Swipe File Page ID | 38e3ef898c4e80ca82caf8c0ce5b7531 |
+| Notion Swipe File DB ID | 3903ef898c4e81d28d90f9a2637204a0 |
 
 ## Connected Tools
 | Tool | Status |
