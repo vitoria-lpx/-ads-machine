@@ -1,8 +1,8 @@
 import { anthropic } from '@ai-sdk/anthropic';
-import { streamText, createTextStreamResponse, toTextStream } from 'ai';
+import { streamObject } from 'ai';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { SYSTEM_PROMPT, buildUserPrompt } from '@/lib/system-prompt';
+import { SYSTEM_PROMPT, buildUserPrompt, briefingSchema } from '@/lib/system-prompt';
 import { extractMarcaSection } from '@/lib/marca-lookup';
 
 export const runtime = 'nodejs';
@@ -26,15 +26,14 @@ export async function POST(req: Request) {
       perfil = extractMarcaSection(marcasContent, body.marca);
     }
 
-    const result = streamText({
+    const result = streamObject({
       model: anthropic('claude-sonnet-4-6'),
+      schema: briefingSchema,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(body, perfil) }],
+      prompt: buildUserPrompt(body, perfil),
     });
 
-    return createTextStreamResponse({
-      stream: toTextStream({ stream: result.stream }),
-    });
+    return result.toTextStreamResponse();
   } catch (error) {
     console.error('[generate] error:', error);
     return new Response(

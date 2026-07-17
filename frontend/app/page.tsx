@@ -1,7 +1,10 @@
 'use client';
 
-import { useCompletion } from '@ai-sdk/react';
-import { useState } from 'react';
+import { experimental_useObject as useObject } from '@ai-sdk/react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { briefingSchema } from '@/lib/system-prompt';
+import { downloadBriefingPdf } from '@/lib/pdf-export';
+import { splitSceneSegments } from '@/lib/scene-format';
 
 const NICHOS = ['Beleza', 'Moda', 'Wellness'];
 
@@ -13,6 +16,102 @@ function ChevronIcon({ open }: { open: boolean }) {
     >
       <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/**
+ * html2canvas has a persistent bug (confirmed across four different CSS
+ * centering techniques — padding, line-height, flexbox, forced height) where
+ * it draws this badge's text glyphs bottom-anchored instead of centered,
+ * even though the container box itself is captured at the correct size.
+ * Rendering it as an SVG image sidesteps html2canvas's text layout entirely —
+ * the browser rasterizes the SVG (with reliable dominant-baseline centering)
+ * before html2canvas ever sees it, the same way it already correctly
+ * captures the logo <img> everywhere else.
+ */
+function EscopoBadge({ text }: { text: string }) {
+  const HEIGHT = 24;
+  const PADDING_X = 12;
+  const FONT_SIZE = 12;
+  const LETTER_SPACING = 0.3;
+
+  const width = useMemo(() => {
+    if (typeof document === 'undefined') return 200;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return 200;
+    ctx.font = `700 ${FONT_SIZE}px Montserrat, sans-serif`;
+    const upper = text.toUpperCase();
+    const textWidth = ctx.measureText(upper).width + LETTER_SPACING * upper.length;
+    return Math.ceil(textWidth) + PADDING_X * 2;
+  }, [text]);
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${HEIGHT}">
+    <rect width="${width}" height="${HEIGHT}" rx="${HEIGHT / 2}" ry="${HEIGHT / 2}" fill="#fdf0ff"/>
+    <text x="50%" y="50%" dy="1.75" text-anchor="middle" dominant-baseline="central" font-family="Montserrat, sans-serif" font-size="${FONT_SIZE}" font-weight="700" letter-spacing="${LETTER_SPACING}" fill="#94089B">${text.toUpperCase()}</text>
+  </svg>`;
+
+  return (
+    <img
+      src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`}
+      alt={text}
+      width={width}
+      height={HEIGHT}
+      style={{ width: `${width}px`, height: `${HEIGHT}px` }}
+    />
+  );
+}
+
+function SceneFormattedText({ text }: { text: string }) {
+  return (
+    <>
+      {splitSceneSegments(text).map((segment, i) =>
+        segment.isDirection ? <em key={i}>{segment.text}</em> : <span key={i}>{segment.text}</span>,
+      )}
+    </>
+  );
+}
+
+function AutoTextarea({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [focused, setFocused] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <div className={`relative ${className ?? ''}`}>
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        rows={1}
+        className={`field-lpx ${className ?? ''} ${focused ? '' : 'text-transparent'}`}
+      />
+      {!focused && (
+        <div
+          aria-hidden="true"
+          className={`field-lpx pointer-events-none absolute inset-0 whitespace-pre-wrap ${className ?? ''}`}
+          style={{ overflow: 'visible', overflowWrap: 'break-word' }}
+        >
+          <SceneFormattedText text={value} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -39,6 +138,43 @@ type BrandProfile = {
   perfil_cache_data?: string;
 };
 
+function formatBriefingText(fields: {
+  campanha: string;
+  dataPostagem: string;
+  escopoEntrega: string;
+  objetivo?: string;
+  hook?: string;
+  corpo?: string;
+  cta?: string;
+  dicasQueValemOuro?: (string | undefined)[];
+}) {
+  const dicas = (fields.dicasQueValemOuro ?? []).filter((d): d is string => !!d);
+  return `Campanha: ${fields.campanha}
+Data de postagem: ${fields.dataPostagem}
+Escopo de entrega: ${fields.escopoEntrega}
+Objetivo: ${fields.objetivo ?? ''}
+
+Hook:
+${fields.hook ?? ''}
+
+Corpo:
+${fields.corpo ?? ''}
+
+CTA:
+${fields.cta ?? ''}
+
+Dicas que valem ouro:
+${dicas.map(d => `- ${d}`).join('\n')}`;
+}
+
+type EditedFields = {
+  objetivo: string;
+  hook: string;
+  corpo: string;
+  cta: string;
+  dicas: string[];
+};
+
 export default function Home() {
   const [form, setForm] = useState({ marca: '', produto: '', nicho: '' });
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -48,13 +184,48 @@ export default function Home() {
   const [refAd, setRefAd] = useState<RefAd | null>(null);
   const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
   const [isFetchingRef, setIsFetchingRef] = useState(false);
+  const [edited, setEdited] = useState<EditedFields>({ objetivo: '', hook: '', corpo: '', cta: '', dicas: [] });
+  const [userEdited, setUserEdited] = useState(false);
+  const pdfRef = useRef<HTMLDivElement>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
-  const { completion, complete, isLoading } = useCompletion({
+  const { object, submit, isLoading } = useObject({
     api: '/api/generate',
-    streamProtocol: 'text',
+    schema: briefingSchema,
   });
 
   const isWorking = isFetchingRef || isLoading;
+
+  const campanha = form.marca ? `Campanha influenciadores ${form.marca}` : '';
+  const dataPostagem = 'A combinar';
+  const escopoEntrega = 'Reels em até 1 minuto';
+
+  // While the AI is still streaming, the edited fields mirror `object` live.
+  // Once the analyst types anything, `userEdited` locks in and further
+  // streaming updates (there are none after the stream ends) stop overwriting it.
+  const streamedFields: EditedFields = {
+    objetivo: object?.objetivo ?? '',
+    hook: object?.hook ?? '',
+    corpo: object?.corpo ?? '',
+    cta: object?.cta ?? '',
+    dicas: (object?.dicasQueValemOuro ?? []).filter((d): d is string => !!d),
+  };
+  const displayed = userEdited ? edited : streamedFields;
+
+  const updateField = (key: 'objetivo' | 'hook' | 'corpo' | 'cta') => (value: string) => {
+    setEdited(prev => ({ ...(userEdited ? prev : streamedFields), [key]: value }));
+    setUserEdited(true);
+  };
+
+  const updateDica = (index: number) => (value: string) => {
+    setEdited(prev => {
+      const base = userEdited ? prev : streamedFields;
+      const dicas = base.dicas.slice();
+      dicas[index] = value;
+      return { ...base, dicas };
+    });
+    setUserEdited(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +233,8 @@ export default function Home() {
     setRefAd(null);
     setBrandProfile(null);
     setIsFetchingRef(true);
+    setUserEdited(false);
+    setEdited({ objetivo: '', hook: '', corpo: '', cta: '', dicas: [] });
 
     let refAdData: RefAd = { found: false };
     let brandProfileData: BrandProfile | null = null;
@@ -88,14 +261,12 @@ export default function Home() {
       setIsFetchingRef(false);
     }
 
-    complete('', {
-      body: {
-        marca:   form.marca,
-        produto: form.produto,
-        nicho:   form.nicho,
-        refAd:   refAdData.found ? refAdData : null,
-        perfil:  brandProfileData?.perfil ?? '',
-      },
+    submit({
+      marca:   form.marca,
+      produto: form.produto,
+      nicho:   form.nicho,
+      refAd:   refAdData.found ? refAdData : null,
+      perfil:  brandProfileData?.perfil ?? '',
     });
   };
 
@@ -107,14 +278,21 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          briefing: completion,
           marca:    form.marca,
           produto:  form.produto,
           nicho:    form.nicho,
           angulo:      refAd?.found ? refAd.angleCategory : '',
           formato:     'Reels',
-          duracao:     '45s',
+          duracao:     'até 1min',
           adLibraryUrl: refAd?.found ? refAd.adLibraryUrl : '',
+          campanha,
+          dataPostagem,
+          escopoEntrega,
+          objetivo: displayed.objetivo,
+          hook:     displayed.hook,
+          corpo:    displayed.corpo,
+          cta:      displayed.cta,
+          dicasQueValemOuro: displayed.dicas,
         }),
       });
       const data = await res.json();
@@ -128,9 +306,30 @@ export default function Home() {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(completion);
+    navigator.clipboard.writeText(
+      formatBriefingText({
+        campanha,
+        dataPostagem,
+        escopoEntrega,
+        objetivo: displayed.objetivo,
+        hook: displayed.hook,
+        corpo: displayed.corpo,
+        cta: displayed.cta,
+        dicasQueValemOuro: displayed.dicas,
+      }),
+    );
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!pdfRef.current) return;
+    setIsDownloadingPdf(true);
+    try {
+      await downloadBriefingPdf(pdfRef.current, form.marca, form.produto);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   const field = (label: string, key: keyof typeof form, placeholder: string) => (
@@ -149,6 +348,8 @@ export default function Home() {
 
   const nichoOptions = NICHOS.map(n => ({ value: n, label: n }));
   const selectedNicho = nichoOptions.find(o => o.value === form.nicho);
+
+  const hasOutput = !!(object?.objetivo || object?.hook || object?.corpo || object?.cta);
 
   return (
     <div className="min-h-screen bg-[#f4f4f4]">
@@ -217,7 +418,7 @@ export default function Home() {
 
             <div className="pt-1 border-t border-[#f0f0f0]">
               <p className="text-xs text-[#999999] mb-4">
-                Formato fixo: Reels · 45s
+                Formato fixo: Reels · até 1 minuto
               </p>
               <button
                 type="submit"
@@ -270,33 +471,101 @@ export default function Home() {
               </div>
             )}
 
+            {!refAd?.found && refAd !== null && (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
+                ⚠️ Nenhum anúncio de referência encontrado — o roteiro abaixo foi criado do zero, sem seguir a lógica de fidelidade à transcrição original.
+              </p>
+            )}
+
             {/* Empty state */}
-            {!completion && !isWorking && !refAd && (
+            {!hasOutput && !isWorking && !refAd && (
               <div className="flex-1 flex items-center justify-center">
                 <p className="text-sm text-[#666666] text-center">
-                  Preencha o formulário ao lado<br />e clique em "Buscar referência e adaptar"
+                  Preencha o formulário ao lado<br />e clique em &ldquo;Buscar referência e adaptar&rdquo;
                 </p>
               </div>
             )}
 
             {/* Loading state */}
-            {isWorking && !completion && (
+            {isWorking && !hasOutput && (
               <div className="flex items-center gap-2 text-sm text-[#666666]">
                 <span className="inline-block w-2 h-2 bg-[#EF27FF] rounded-full animate-pulse" />
                 {isFetchingRef ? 'Buscando anúncio de referência...' : 'Gerando briefing...'}
               </div>
             )}
 
-            {/* Script */}
-            {completion && (
-              <>
-                <pre className="whitespace-pre-wrap font-sans text-sm text-[#1a1a1a] leading-relaxed flex-1">
-                  {completion}
-                  {isLoading && <span className="animate-pulse text-[#EF27FF]">▊</span>}
-                </pre>
+            {/* Briefing */}
+            {hasOutput && (
+              <div className="flex-1 flex flex-col gap-5">
+                {/* Área exportada para o PDF — sem cards de referência, avisos ou botões */}
+                <div ref={pdfRef} className="flex flex-col gap-5 bg-white">
+                  {/* Metadados */}
+                  <div className="pdf-avoid-break">
+                    <div className="flex items-center gap-3 mb-3">
+                      <img src="/logor5.png" alt="LPX" className="h-16 w-auto shrink-0" />
+                      <h1 className="text-lg font-semibold text-[#1a1a1a]">{campanha}</h1>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm mb-3">
+                      <p><span className="font-medium text-[#1a1a1a]">Data de postagem:</span> <span className="text-[#666666]">{dataPostagem}</span></p>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-[#1a1a1a]">Escopo de entrega:</span>
+                        <EscopoBadge text={escopoEntrega} />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[#1a1a1a] text-sm mb-1">Objetivo</p>
+                      <AutoTextarea
+                        value={displayed.objetivo}
+                        onChange={updateField('objetivo')}
+                        className="text-sm text-[#333333] leading-relaxed"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Roteiro */}
+                  <div className="grid gap-3">
+                    {([
+                      ['Hook', 'hook', object?.hook],
+                      ['Corpo', 'corpo', object?.corpo],
+                      ['CTA', 'cta', object?.cta],
+                    ] as const).map(([label, key, streamed]) => (
+                      streamed !== undefined && (
+                        <div key={label} className="border border-[#e0e0e0] rounded-lg p-4 pdf-avoid-break">
+                          <p className="text-xs font-semibold text-[#EF27FF] uppercase tracking-wider mb-2">{label}</p>
+                          <AutoTextarea
+                            value={displayed[key]}
+                            onChange={updateField(key)}
+                            className="text-sm text-[#1a1a1a] leading-relaxed"
+                          />
+                        </div>
+                      )
+                    ))}
+                  </div>
+
+                  {/* Dicas que valem ouro */}
+                  {displayed.dicas.length > 0 && (
+                    <div className="border-t border-[#e0e0e0] pt-4 pdf-avoid-break">
+                      <p className="text-xs font-semibold text-[#666666] uppercase tracking-wider mb-2">
+                        Dicas que valem ouro
+                      </p>
+                      <ul className="space-y-1">
+                        {displayed.dicas.map((dica, i) => (
+                          <li key={i} className="flex gap-2 text-sm text-[#333333]">
+                            <span className="select-none">•</span>
+                            <AutoTextarea
+                              value={dica}
+                              onChange={updateDica(i)}
+                              className="flex-1 text-sm text-[#333333] leading-relaxed"
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
 
                 {refAd?.found && refAd.videoUrl && !isLoading && (
-                  <div className="mt-6 pt-5 border-t border-[#e0e0e0]">
+                  <div className="pt-5 border-t border-[#e0e0e0]">
                     <p className="text-xs font-semibold text-[#666666] uppercase tracking-wider mb-2">
                       Vídeo de referência
                     </p>
@@ -310,11 +579,11 @@ export default function Home() {
                     </a>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
 
-          {completion && !isLoading && (
+          {hasOutput && !isLoading && (
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm">
                 {notionStatus === 'saved' && (
@@ -330,6 +599,13 @@ export default function Home() {
                   className="text-sm border border-[#e0e0e0] rounded-lg px-4 py-2 text-[#666666] hover:text-[#1a1a1a] hover:border-[#EF27FF] transition-colors"
                 >
                   {copied ? 'Copiado!' : 'Copiar briefing'}
+                </button>
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={isDownloadingPdf}
+                  className="text-sm border border-[#e0e0e0] rounded-lg px-4 py-2 text-[#666666] hover:text-[#1a1a1a] hover:border-[#EF27FF] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isDownloadingPdf ? 'Gerando PDF...' : 'Baixar PDF'}
                 </button>
                 <button
                   onClick={handleSaveNotion}

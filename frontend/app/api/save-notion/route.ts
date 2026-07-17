@@ -1,5 +1,13 @@
 import { Client } from '@notionhq/client';
 
+const NEW_PROPERTIES = {
+  'Campanha':            { rich_text: {} },
+  'Data de postagem':    { rich_text: {} },
+  'Escopo de entrega':   { rich_text: {} },
+  'Objetivo':            { rich_text: {} },
+  'Criativo Inspiração': { url: {} },
+};
+
 async function getOrCreateDatabase(notion: Client, parentPageId: string): Promise<string> {
   const search = await notion.search({
     query: 'Briefings Gerados',
@@ -13,10 +21,14 @@ async function getOrCreateDatabase(notion: Client, parentPageId: string): Promis
   );
   if (existing) {
     const db = await notion.databases.retrieve({ database_id: existing.id });
-    if (!('Criativo Inspiração' in (db as { properties: Record<string, unknown> }).properties)) {
+    const currentProps = (db as { properties: Record<string, unknown> }).properties;
+    const missing = Object.fromEntries(
+      Object.entries(NEW_PROPERTIES).filter(([name]) => !(name in currentProps)),
+    );
+    if (Object.keys(missing).length > 0) {
       await notion.databases.update({
         database_id: existing.id,
-        properties: { 'Criativo Inspiração': { url: {} } },
+        properties: missing,
       });
     }
     return existing.id;
@@ -36,13 +48,25 @@ async function getOrCreateDatabase(notion: Client, parentPageId: string): Promis
       'Formato':             { select: { options: [] } },
       'Duração':             { select: { options: [] } },
       'Data de geração':     { date: {} },
-      'Criativo Inspiração': { url: {} },
+      ...NEW_PROPERTIES,
     },
   });
   return db.id;
 }
 
-function toBlocks(text: string) {
+function richText(text: string) {
+  return text.length > 2000 ? text.slice(0, 1997) + '...' : text;
+}
+
+function heading(text: string) {
+  return {
+    object: 'block' as const,
+    type: 'heading_3' as const,
+    heading_3: { rich_text: [{ type: 'text' as const, text: { content: text } }] },
+  };
+}
+
+function paragraph(text: string) {
   const chunks: string[] = [];
   for (let i = 0; i < text.length; i += 2000) chunks.push(text.slice(i, i + 2000));
   return chunks.map(chunk => ({
@@ -52,9 +76,20 @@ function toBlocks(text: string) {
   }));
 }
 
+function bulletedList(items: string[]) {
+  return items.map(item => ({
+    object: 'block' as const,
+    type: 'bulleted_list_item' as const,
+    bulleted_list_item: { rich_text: [{ type: 'text' as const, text: { content: item } }] },
+  }));
+}
+
 export async function POST(req: Request) {
   try {
-    const { briefing, marca, produto, nicho, angulo, formato, duracao, adLibraryUrl } = await req.json();
+    const {
+      marca, produto, nicho, angulo, formato, duracao, adLibraryUrl,
+      campanha, dataPostagem, escopoEntrega, objetivo, hook, corpo, cta, dicasQueValemOuro,
+    } = await req.json();
 
     const token = process.env.NOTION_TOKEN;
     if (!token) return Response.json({ error: 'NOTION_TOKEN não configurado' }, { status: 500 });
@@ -64,18 +99,35 @@ export async function POST(req: Request) {
 
     const databaseId = await getOrCreateDatabase(notion, parentPageId);
 
+    const children = [
+      heading('Objetivo'),
+      ...paragraph(objetivo ?? ''),
+      heading('Hook'),
+      ...paragraph(hook ?? ''),
+      heading('Corpo'),
+      ...paragraph(corpo ?? ''),
+      heading('CTA'),
+      ...paragraph(cta ?? ''),
+      heading('Dicas que valem ouro'),
+      ...bulletedList(Array.isArray(dicasQueValemOuro) ? dicasQueValemOuro : []),
+    ];
+
     await notion.pages.create({
       parent: { database_id: databaseId },
       properties: {
-        'Título':          { title: [{ text: { content: `${marca} — ${produto}` } }] },
-        'Nicho':           { select: { name: nicho } },
+        'Título':            { title: [{ text: { content: `${marca} — ${produto}` } }] },
+        'Nicho':             { select: { name: nicho } },
         ...(angulo ? { 'Ângulo': { select: { name: angulo } } } : {}),
-        'Formato':         { select: { name: formato } },
-        'Duração':         { select: { name: duracao } },
-        'Data de geração': { date: { start: new Date().toISOString().split('T')[0] } },
+        'Formato':           { select: { name: formato } },
+        'Duração':           { select: { name: duracao } },
+        'Data de geração':   { date: { start: new Date().toISOString().split('T')[0] } },
+        'Campanha':          { rich_text: [{ text: { content: richText(campanha ?? '') } }] },
+        'Data de postagem':  { rich_text: [{ text: { content: richText(dataPostagem ?? '') } }] },
+        'Escopo de entrega': { rich_text: [{ text: { content: richText(escopoEntrega ?? '') } }] },
+        'Objetivo':          { rich_text: [{ text: { content: richText(objetivo ?? '') } }] },
         ...(adLibraryUrl ? { 'Criativo Inspiração': { url: adLibraryUrl } } : {}),
       },
-      children: toBlocks(briefing),
+      children,
     });
 
     return Response.json({ ok: true });

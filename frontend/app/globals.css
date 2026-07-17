@@ -26,3 +26,31 @@ body {
   border-color: #EF27FF;
   box-shadow: 0 0 0 3px rgba(239, 39, 255, 0.12);
 }
+
+/* Editable briefing fields must look like plain text at rest — the PDF is a
+   html2canvas capture of this DOM, so any leftover "form field" styling
+   (border, background, resize handle) would show up in the exported file. */
+.field-lpx {
+  display: block;
+  width: 100%;
+  resize: none;
+  overflow: hidden;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  font: inherit;
+  color: inherit;
+  line-height: inherit;
+}
+
+.field-lpx:focus {
+  box-shadow: 0 0 0 2px rgba(239, 39, 255, 0.15);
+  border-radius: 4px;
+}
+
+.pdf-avoid-break {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
