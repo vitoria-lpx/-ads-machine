@@ -1,5 +1,18 @@
 {
+  "scripts": {
+    "verificar-ads": "tsx scripts/verificar-ads.ts"
+  },
   "dependencies": {
-    "ai": "^7.0.0"
+    "ai": "^7.0.0",
+    "apify-client": "^2.25.0",
+    "dotenv": "^17.4.2",
+    "googleapis": "^174.0.1",
+    "string-similarity": "^4.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/string-similarity": "^4.0.2",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
   }
 }

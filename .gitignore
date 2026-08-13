@@ -18,6 +18,9 @@ tmp/
 *.mp3
 *.mp4
 
+# scripts/verificar-ads.ts — token OAuth do Google Drive salvo localmente
+scripts/.google-token.json
+
 # OS
 .DS_Store
 Thumbs.db
