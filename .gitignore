@@ -21,6 +21,9 @@ tmp/
 # scripts/verificar-ads.ts — token OAuth do Google Drive salvo localmente
 scripts/.google-token.json
 
+# scripts/relatorio-comparacao.ts — PDFs gerados contêm dados de clientes
+relatorios/
+
 # OS
 .DS_Store
 Thumbs.db

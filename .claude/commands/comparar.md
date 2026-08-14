@@ -83,6 +83,25 @@ Rode com `npx tsx {arquivo}.ts`, mostre as duas transcrições pro usuário, e *
 
 ---
 
+## Step 5: Relatório em PDF de todas as marcas
+
+Se o usuário pedir um "relatório", "PDF", "relatório do dia" ou similar (em vez de uma marca específica), rode o relatório consolidado em vez do Step 2-3 acima:
+
+```
+npm run relatorio-comparacao
+```
+
+Isso roda `compareBrand` (mesma lógica de `scripts/lib/report.ts`, compartilhada com `verificar-ads.ts`) pra **toda marca cadastrada em `reference/marcas-lpx-ads.json` que tenha `pageIds` preenchido**, e gera um PDF em `relatorios/comparacao-{YYYY-MM-DD}.pdf` com:
+- capa + resumo executivo (quantas marcas, quantos vídeos rodando confirmados, destaque separado pros `*SEM CONTRATO*`)
+- lista de marcas que falharam no processamento (ex: pasta do Drive não encontrada) sem derrubar o relatório inteiro
+- uma seção por marca, mesma tabela ordenada por % do Step 3
+
+Rode em background (processa todas as marcas em sequência, pode levar bem mais tempo que uma marca só). Ao terminar, informe o caminho do PDF gerado e resuma o achado principal (quantos reusos confirmados, com destaque pros `*SEM CONTRATO*`) -- não é preciso reimprimir a lista inteira no chat já que o PDF tem tudo.
+
+Marcas sem `pageIds` (ex: cadastro incompleto) são puladas automaticamente e listadas no console -- não é erro.
+
+---
+
 ## CRITICAL RULES
 
 1. Nunca invente % de semelhança -- sempre vem do output real do script (`bestMatch` em `scripts/lib/compare.ts`).
