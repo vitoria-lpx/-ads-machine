@@ -5,7 +5,7 @@
     "driveFolderId": "1zYOx_2KXy-Llvk8L0pofz_GQgAgUAL1p"
   },
   "Menina Web": { "pageIds": [] },
-  "Hoomy": { "pageIds": ["107291812083246"] },
+  "Hoomy": { "pageIds": ["107291812083246"], "driveFolderId": "1MYGIx8prgdLhAz7WLVS86QQxH3UoRXLm" },
   "Bendita Cânfora Casa": {
     "pageIds": ["329757027063729", "1060517737150126", "1141315549067206"],
     "driveFolder": "BENDITA CANFORA",
@@ -13,5 +13,5 @@
   },
   "Laby": { "pageIds": [] },
   "Beleza Brasileira": { "pageIds": ["105452404735186"] },
-  "Maite": { "pageIds": ["1252390144771131"] }
+  "Maite": { "pageIds": ["1252390144771131"], "driveFolderId": "1MxHGOrFE8YUM65tM8b0Fl2LgS7xJkURW" }
 }
