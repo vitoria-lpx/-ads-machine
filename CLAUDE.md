@@ -54,6 +54,12 @@ Per `reference/compliance.md`: advertisers have been permanently banned for conn
 - Direct Graph API write access is gated behind an explicit compliance checklist confirmation in the skill, and created campaigns/ad sets/ads must always be created **paused**.
 - Don't add code that creates a Meta developer app workflow on the same account used for spend, or that removes/loosens the existing rate limiting.
 
+## Automated creative-reuse comparison (`/comparar`)
+
+`.github/workflows/relatorio-comparacao.yml` runs `npm run relatorio-comparacao` on a daily cron (08:00 America/Sao_Paulo) plus manual `workflow_dispatch`, generating a PDF that compares influencer Drive videos against live Meta ads for every brand with `pageIds` set in `reference/marcas-lpx-ads.json`. Output is a GitHub Actions artifact (30-day retention) — the PDF is never committed to the repo (`relatorios/` is gitignored).
+
+Google Drive auth uses a personal OAuth token (not a service account), restored at the start of the job from the `GOOGLE_TOKEN_JSON` secret into `scripts/.google-token.json`. Because the Google Cloud OAuth consent screen is still in "Testing" publishing status, that token's refresh token expires roughly every 7 days — the cron will start failing at the "Gerar relatório" step until someone runs `npm run verificar-ads -- "<qualquer marca>"` locally to re-login, then pastes the refreshed `scripts/.google-token.json` content back into the `GOOGLE_TOKEN_JSON` GitHub secret. Moving to a Drive service account (share each brand's folder with the service account email) would remove this recurring manual step, but wasn't set up here by choice.
+
 ## Reference files
 
 `reference/*.md` holds the universal ad-strategy knowledge the skills draw on (frameworks, KPI benchmarks, copy patterns, compliance, troubleshooting, etc. — see table in `README.md`). These contain no client data; skill prompts read from them rather than hardcoding strategy knowledge inline. When changing how a skill writes copy or makes kill/scale decisions, update the relevant `reference/` file rather than duplicating the rule inside the skill's `.md`.
