@@ -22,7 +22,6 @@ export interface ComparisonItem {
   status: ComparisonStatus;
   similarity: number;
   matchUrl?: string;
-  semContrato: boolean;
 }
 
 export interface BrandComparisonResult {
@@ -46,16 +45,15 @@ export async function compareBrand(marca: string, brand: BrandConfig): Promise<B
     const folderId = brand.driveFolderId ?? (await findBrandFolder(drive, driveFolderName));
     const videos = await listVideosInFolder(drive, folderId);
 
-    const driveTranscripts: { name: string; text: string; semContrato: boolean }[] = [];
+    const driveTranscripts: { name: string; text: string }[] = [];
     for (const video of videos) {
       const dest = path.join(tmpDir, `${video.id}${video.ext}`);
-      const semContrato = video.name.toUpperCase().includes('SEM CONTRATO');
       await downloadDriveFile(drive, video.id, dest);
       try {
         const { text } = await transcribeGroq(dest);
-        driveTranscripts.push({ name: video.name, text, semContrato });
+        driveTranscripts.push({ name: video.name, text });
       } catch {
-        driveTranscripts.push({ name: video.name, text: '', semContrato });
+        driveTranscripts.push({ name: video.name, text: '' });
       } finally {
         fs.unlinkSync(dest);
       }
@@ -79,7 +77,7 @@ export async function compareBrand(marca: string, brand: BrandConfig): Promise<B
     const candidateTexts = adTranscripts.map((a) => a.text);
     const items: ComparisonItem[] = driveTranscripts.map((dv) => {
       if (!dv.text) {
-        return { name: dv.name, status: 'sem-audio', similarity: 0, semContrato: dv.semContrato };
+        return { name: dv.name, status: 'sem-audio', similarity: 0 };
       }
       const { index, rating } = bestMatch(dv.text, candidateTexts);
       const rodando = index >= 0 && rating >= MATCH_THRESHOLD;
@@ -88,7 +86,6 @@ export async function compareBrand(marca: string, brand: BrandConfig): Promise<B
         status: rodando ? 'rodando' : 'nao-encontrado',
         similarity: rating,
         matchUrl: rodando ? adTranscripts[index].libraryUrl : undefined,
-        semContrato: dv.semContrato,
       };
     });
 

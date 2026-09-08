@@ -49,16 +49,14 @@ function drawRow(doc: PDFKit.PDFDocument, item: BrandComparisonResult['items'][n
 
   const rodando = item.status === 'rodando';
   const semAudio = item.status === 'sem-audio';
-  const flagRisco = rodando && item.semContrato;
 
-  const nameSuffix = item.semContrato ? '  [SEM CONTRATO]' : '';
-  const nameColor = flagRisco ? '#b00020' : semAudio ? '#888888' : '#000000';
+  const nameColor = rodando ? '#b00020' : semAudio ? '#888888' : '#000000';
   const simText = semAudio ? '—' : `${(item.similarity * 100).toFixed(0)}%`;
-  const statusColor = flagRisco ? '#b00020' : rodando ? '#c0392b' : semAudio ? '#888888' : '#555555';
+  const statusColor = rodando ? '#b00020' : semAudio ? '#888888' : '#555555';
 
-  doc.font(flagRisco ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(nameColor);
-  const nameHeight = doc.heightOfString(item.name + nameSuffix, { width: COL_VIDEO });
-  doc.text(item.name + nameSuffix, MARGIN, y, { width: COL_VIDEO });
+  doc.font(rodando ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(nameColor);
+  const nameHeight = doc.heightOfString(item.name, { width: COL_VIDEO });
+  doc.text(item.name, MARGIN, y, { width: COL_VIDEO });
 
   doc.font(rodando ? 'Helvetica-Bold' : 'Helvetica').fillColor(statusColor);
   doc.text(simText, MARGIN + COL_VIDEO, y, { width: COL_SIM });
@@ -109,18 +107,17 @@ async function main() {
   const flagged = results.flatMap(({ marca, result }) =>
     (result?.items ?? []).filter((i) => i.status === 'rodando').map((i) => ({ marca, item: i }))
   );
-  const flaggedSemContrato = flagged.filter((f) => f.item.semContrato);
 
   doc.font('Helvetica-Bold').fontSize(13).fillColor('#000000').text('Resumo executivo');
   doc.moveDown(0.3);
   doc.font('Helvetica').fontSize(10).fillColor('#333333');
-  doc.text(`${eligible.length} marca(s) analisada(s). ${flagged.length} vídeo(s) confirmado(s) rodando como anúncio ativo, sendo ${flaggedSemContrato.length} marcado(s) *SEM CONTRATO*.`);
+  doc.text(`${eligible.length} marca(s) analisada(s). ${flagged.length} vídeo(s) confirmado(s) rodando como anúncio ativo.`);
   doc.moveDown(0.5);
 
-  if (flaggedSemContrato.length > 0) {
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#b00020').text('⚠ Reuso sem contrato detectado:');
+  if (flagged.length > 0) {
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#b00020').text('⚠ Reuso detectado:');
     doc.font('Helvetica').fontSize(9).fillColor('#b00020');
-    for (const f of flaggedSemContrato) {
+    for (const f of flagged) {
       doc.text(`• [${f.marca}] ${f.item.name} — ${(f.item.similarity * 100).toFixed(0)}% → ${f.item.matchUrl}`);
     }
     doc.moveDown(0.5);

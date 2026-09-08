@@ -5,7 +5,7 @@ description: Compara os vídeos de influencer na pasta do Drive de uma marca LPX
 
 # Comparar Criativos (verificar-ads)
 
-Você é a interface pro script `scripts/verificar-ads.ts`. Ele baixa os vídeos que influencers mandaram (pasta do Drive da marca), transcreve com Whisper, baixa os anúncios em vídeo **ativos** da marca no Meta Ad Library, transcreve também, e compara texto a texto pra achar reuso -- vídeo enviado por influencer rodando como anúncio pago, com ou sem contrato.
+Você é a interface pro script `scripts/verificar-ads.ts`. Ele baixa os vídeos que influencers mandaram (pasta do Drive da marca), transcreve com Whisper, baixa os anúncios em vídeo **ativos** da marca no Meta Ad Library, transcreve também, e compara texto a texto pra achar reuso -- vídeo enviado por influencer rodando como anúncio pago.
 
 **O que você produz:** uma lista de todos os vídeos da pasta do Drive, ordenada por % de semelhança com o anúncio ativo mais parecido, destacando os que batem o threshold (rodando) e os "quase" que merecem uma checada manual.
 
@@ -63,7 +63,6 @@ Parseie o bloco `=== Resumo — {marca} ===` da saída e monte uma tabela ordena
 ```
 
 - Marque com 🚨 e negrito qualquer linha que bateu o threshold ("RODANDO").
-- Vídeos com nome contendo `*SEM CONTRATO*` são o caso de maior risco -- se um desses aparecer como RODANDO, chame atenção especial (é reuso sem autorização).
 - Vídeos "não transcrito (sem áudio ou falha na transcrição)" -- normal pra clipes mudos/b-roll, não é bug do script. Liste como "sem áudio, não comparado".
 - Cite quantos vídeos tinham na pasta vs. quantos anúncios ativos foram comparados (dá contexto pro tamanho da amostra).
 
@@ -71,7 +70,7 @@ Parseie o bloco `=== Resumo — {marca} ===` da saída e monte uma tabela ordena
 
 ## Step 4: Oferecer comparação manual dos "quase"
 
-Depois da lista, se houver algum vídeo com % alto mas abaixo do threshold (ex: 60-79%) que pareça suspeito -- especialmente se for `*SEM CONTRATO*` -- ofereça puxar a transcrição completa dele e do anúncio mais parecido, pro usuário comparar com os próprios olhos (o algoritmo de similaridade de texto penaliza reescrita/reordenação de frases mesmo quando o conteúdo é essencialmente o mesmo roteiro).
+Depois da lista, se houver algum vídeo com % alto mas abaixo do threshold (ex: 60-79%) que pareça suspeito, ofereça puxar a transcrição completa dele e do anúncio mais parecido, pro usuário comparar com os próprios olhos (o algoritmo de similaridade de texto penaliza reescrita/reordenação de frases mesmo quando o conteúdo é essencialmente o mesmo roteiro).
 
 Pra isso, **não precisa reprocessar a marca inteira**: escreva um script ad-hoc temporário na raiz do repo (nunca dentro de `scripts/`, pra não virar parte permanente do projeto) que:
 1. usa `listVideosInFolder` + `downloadDriveFile` + `transcribeGroq` de `scripts/lib/drive.ts` e `scripts/lib/transcribe.ts` pra pegar a transcrição só do vídeo específico do Drive;
@@ -92,11 +91,11 @@ npm run relatorio-comparacao
 ```
 
 Isso roda `compareBrand` (mesma lógica de `scripts/lib/report.ts`, compartilhada com `verificar-ads.ts`) pra **toda marca cadastrada em `reference/marcas-lpx-ads.json` que tenha `pageIds` preenchido**, e gera um PDF em `relatorios/comparacao-{YYYY-MM-DD}.pdf` com:
-- capa + resumo executivo (quantas marcas, quantos vídeos rodando confirmados, destaque separado pros `*SEM CONTRATO*`)
+- capa + resumo executivo (quantas marcas, quantos vídeos rodando confirmados)
 - lista de marcas que falharam no processamento (ex: pasta do Drive não encontrada) sem derrubar o relatório inteiro
 - uma seção por marca, mesma tabela ordenada por % do Step 3
 
-Rode em background (processa todas as marcas em sequência, pode levar bem mais tempo que uma marca só). Ao terminar, informe o caminho do PDF gerado e resuma o achado principal (quantos reusos confirmados, com destaque pros `*SEM CONTRATO*`) -- não é preciso reimprimir a lista inteira no chat já que o PDF tem tudo.
+Rode em background (processa todas as marcas em sequência, pode levar bem mais tempo que uma marca só). Ao terminar, informe o caminho do PDF gerado e resuma o achado principal (quantos reusos confirmados) -- não é preciso reimprimir a lista inteira no chat já que o PDF tem tudo.
 
 Marcas sem `pageIds` (ex: cadastro incompleto) são puladas automaticamente e listadas no console -- não é erro.
 
