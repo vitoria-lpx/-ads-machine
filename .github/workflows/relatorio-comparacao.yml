@@ -1,9 +1,10 @@
 name: Relatório de Comparação de Criativos
 
 on:
-  schedule:
-    # 08:00 em São Paulo (UTC-3, sem horário de verão) = 11:00 UTC
-    - cron: '0 11 * * *'
+  # Agendamento diário pausado: roda só manualmente (Actions → Run workflow).
+  # Para reativar às 08:00 de São Paulo (11:00 UTC):
+  # schedule:
+  #   - cron: '0 11 * * *'
   workflow_dispatch: {}
 
 jobs:
