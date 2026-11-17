@@ -8,6 +8,10 @@ The Ads Machine is not a traditional application — it's a collection of Claude
 
 Each skill file in `.claude/commands/` is a prompt/instruction set that Claude executes directly — read the relevant `.md` file before changing behavior for that command rather than searching for application code.
 
+## LPX brand context lives in the LPX brain
+
+For LPX client brands, the up-to-date brand profiles are in the LPX brain at `C:\Users\Vitoria\LPX - Brain\clientes\<brand>\marca.md` (products, prices, tone, forbidden claims), next to `video.md` (brand color, logo, what to show on video). Read it before writing a briefing, script or ad for an LPX brand. `reference/marcas-lpx.md` here is an older copy: when the two differ, the brain wins, and the fix goes in both. Write in Portuguese (pt-BR) for LPX brands.
+
 ## The closed loop (architecture)
 
 The system is a 9-stage pipeline (full description in `docs/blueprint.md`) that scrapes competitor ads, learns from winners, generates new ads, launches them, and feeds performance data back in:
